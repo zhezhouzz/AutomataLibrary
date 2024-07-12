@@ -1,0 +1,15 @@
+(library
+ (name commands)
+ (public_name automata_library.commands)
+ (libraries
+  core
+  core_unix.sys_unix
+  language
+  ntypecheck
+  )
+ (modules
+  caux
+  cre)
+ (preprocess
+  (pps ppx_inline_test ppx_assert ppx_jane))
+ (inline_tests))
