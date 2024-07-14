@@ -143,11 +143,12 @@ let prop_of_expr expr =
         (* Ite (aux e1, aux e2, aux e3) *)
     | Pexp_ifthenelse (_, _, None) -> raise @@ failwith "no else branch in ite"
     | Pexp_fun (_, _, arg, expr) -> (
-        let q, qv = quantifier_of_expr arg in
+        let q, qv = notation_of_expr arg in
         let body = aux expr in
         match q with
-        | Normalty.Connective.Fa -> Forall { qv; body }
-        | Normalty.Connective.Ex -> Exists { qv; body })
+        | FA -> Forall { qv; body }
+        | EX -> Exists { qv; body }
+        | _ -> _failatwith __FILE__ __LINE__ "die")
     | Pexp_construct _ ->
         (* let () = *)
         (*   Printf.printf "expr: %s\n" (Pprintast.string_of_expression expr) *)
