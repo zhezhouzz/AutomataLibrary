@@ -87,22 +87,24 @@ let mk_false = Lit (AC (B false)) #: Nt.bool_ty
 let is_true p = match get_cbool p with Some true -> true | _ -> false
 let is_false p = match get_cbool p with Some false -> true | _ -> false
 
-let eq_prop sexp_of_t p1 p2 =
-  Sexplib.Sexp.equal (sexp_of_prop sexp_of_t p1) (sexp_of_prop sexp_of_t p2)
+let eq_prop p1 p2 =
+  Sexplib.Sexp.equal
+    (sexp_of_prop Nt.sexp_of_t p1)
+    (sexp_of_prop Nt.sexp_of_t p2)
 
 open Zzdatatype.Datatype
 
-let unfold_and (sexp_of_t : 'a -> Sexplib.Sexp.t) prop =
+let unfold_and prop =
   let rec aux = function
     | [] -> []
     | And l :: l' -> aux (l @ l')
     | prop :: l' -> prop :: aux l'
   in
   let l = aux prop in
-  List.slow_rm_dup (eq_prop sexp_of_t) l
+  List.slow_rm_dup eq_prop l
 
-let smart_and (sexp_of_t : 'a -> Sexplib.Sexp.t) l =
-  let l = unfold_and sexp_of_t l in
+let smart_and l =
+  let l = unfold_and l in
   if List.exists is_false l then mk_false
   else
     match List.filter (fun p -> not (is_true p)) l with
@@ -110,17 +112,17 @@ let smart_and (sexp_of_t : 'a -> Sexplib.Sexp.t) l =
     | [ x ] -> x
     | l -> And l
 
-let unfold_or sexp_of_t prop =
+let unfold_or prop =
   let rec aux = function
     | [] -> []
     | Or l :: l' -> aux (l @ l')
     | prop :: l' -> prop :: aux l'
   in
   let l = aux prop in
-  List.slow_rm_dup (eq_prop sexp_of_t) l
+  List.slow_rm_dup eq_prop l
 
-let smart_or sexp_of_t l =
-  let l = unfold_or sexp_of_t l in
+let smart_or l =
+  let l = unfold_or l in
   if List.exists is_true l then mk_true
   else
     match List.filter (fun p -> not (is_false p)) l with
@@ -128,18 +130,39 @@ let smart_or sexp_of_t l =
     | [ x ] -> x
     | l -> Or l
 
-let smart_add_to (sexp_of_t : 't -> Sexplib.Sexp.t) (a : 't prop)
-    (prop : 't prop) =
+let smart_add_to (a : 't prop) (prop : 't prop) =
   match get_cbool a with
   | Some true -> prop
   | Some false -> mk_false
   | None -> (
       match prop with
-      | And props -> smart_and sexp_of_t (a :: props)
-      | _ -> smart_and sexp_of_t [ a; prop ])
+      | And props -> smart_and (a :: props)
+      | _ -> smart_and [ a; prop ])
 
 let smart_implies _ a prop =
   match get_cbool a with
   | Some true -> prop
   | Some false -> mk_true
   | None -> Implies (a, prop)
+
+let get_lits prop =
+  (* let () = *)
+  (*   Env.show_log "gather" @@ fun _ -> Printf.printf ">>>>> get_lits:\n" *)
+  (* in *)
+  let rec aux e res =
+    match e with
+    | Lit { x = AC _; _ } -> res
+    | Lit lit -> (
+        let litopt = get_non_unit_lit lit in
+        match litopt with None -> res | Some lit -> lit :: res)
+    | Implies (e1, e2) -> aux e1 @@ aux e2 res
+    | Ite (e1, e2, e3) -> aux e1 @@ aux e2 @@ aux e3 res
+    | Not e -> aux e res
+    | And es -> List.fold_right aux es res
+    | Or es -> List.fold_right aux es res
+    | Iff (e1, e2) -> aux e1 @@ aux e2 res
+    | Forall _ -> _failatwith __FILE__ __LINE__ "die"
+    | Exists _ -> _failatwith __FILE__ __LINE__ "die"
+  in
+  let (lits : Nt.t lit list) = aux prop [] in
+  Zzdatatype.Datatype.List.slow_rm_dup eq_lit lits

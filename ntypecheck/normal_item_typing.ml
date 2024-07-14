@@ -1,7 +1,6 @@
 open Language
 open Normal_prop_typing
 open Normal_qregex_typing
-open Normal_regex_typing
 
 type t = Nt.t
 
@@ -47,10 +46,7 @@ let item_check ctx (e : t option item) : t ctx * t item =
   | MAxiom { name; prop } ->
       (ctx, MAxiom { name; prop = bi_typed_prop_check ctx prop })
   | MFAImp { name; automata } ->
-      ( ctx,
-        MFAImp
-          { name; automata = bi_qregex_check bi_str_regex_check ctx automata }
-      )
+      (ctx, MFAImp { name; automata = bi_str_qregex_check ctx automata })
   | MSFAImp { name; automata } ->
       (ctx, MSFAImp { name; automata = bi_symbolic_qregex_check ctx automata })
 (* | _ -> _failatwith __FILE__ __LINE__ "die" *)

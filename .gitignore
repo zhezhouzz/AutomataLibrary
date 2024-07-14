@@ -1,3 +1,4 @@
+*.dot
 *.annot
 *.cmo
 *.cma

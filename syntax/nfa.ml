@@ -1,7 +1,9 @@
 open Ast
 
-module MakeAutomata (C : CHARACTER) (CharMap : Map.S with type key = C.t) =
-struct
+module MakeAutomata (C : CHARACTER) = struct
+  module C = C
+  module CharMap = Map.Make (C)
+
   type transitions = StateSet.t CharMap.t
   type d_transition = state CharMap.t
 
@@ -43,7 +45,7 @@ struct
       nfa init
 
   let layout_nfa nfa =
-    let open Zzdatatype.Datatype in
+    (* let open Zzdatatype.Datatype in *)
     let () =
       Printf.printf "starts: %s\n" (layout_states Int64.to_string nfa.start)
     in
@@ -87,9 +89,9 @@ struct
     in
     let dummy_transitions = Hashtbl.create 1000 in
     let point_to_dummy_node (s, c) =
-      let () =
-        Printf.printf "### --%s-->%s\n" (C.layout c) (Int64.to_string s)
-      in
+      (* let () = *)
+      (*   Printf.printf "### --%s-->%s\n" (C.layout c) (Int64.to_string s) *)
+      (* in *)
       match Hashtbl.find_opt dummy_transitions c with
       | None -> Hashtbl.add dummy_transitions c (StateSet.singleton s)
       | Some ss -> Hashtbl.replace dummy_transitions c (StateSet.add s ss)
@@ -521,10 +523,8 @@ struct
   let empty = Empty
   let oneof cs = match CharSet.cardinal cs with 0 -> Empty | _ -> Char cs
 
-  let regex_to_raw ctx (regex : C.t regex) : CharSet.t raw_regex option =
-    let regex = Regex.desugar regex in
+  let regex_to_raw (regex : C.t regex) : CharSet.t raw_regex option =
     (* let regex = Regex.to_nnf regex in *)
-    let regex = Regex.limit_context ctx regex in
     (* let () = *)
     (*   Printf.printf "regex_to_raw: %s\n" *)
     (*     (Sexplib.Sexp.to_string *)
@@ -534,9 +534,9 @@ struct
     (* in *)
     let rec aux (regex : C.t regex) : CharSet.t raw_regex option =
       match regex with
-      | SetMinusA _ -> failwith "die"
-      | LandA _ | ComplementA _ -> None
-      | AnyA -> Some (Char (CharSet.of_list ctx))
+      | SetMinusA _ | ComplementA _ | AnyA | CtxOp _ | Ctx _ -> failwith "die"
+      | LandA _ | DComplementA _ -> None
+      | MultiAtomic l -> Some (Char (CharSet.of_list l))
       | EmptyA -> Some Empty
       | EpsilonA -> Some Eps
       | Atomic c -> Some (Char (CharSet.singleton c))
@@ -554,13 +554,13 @@ struct
     in
     aux regex
 
-  let compile ctx (r : C.t regex) : nfa =
-    match regex_to_raw ctx r with
+  let compile (r : C.t regex) : nfa =
+    match regex_to_raw r with
     | Some r -> compile_from_raw_regex r
     | None -> _failatwith __FILE__ __LINE__ "die"
 
   let layout_dfa (dfa : dfa) =
-    let open Zzdatatype.Datatype in
+    (* let open Zzdatatype.Datatype in *)
     let () = Printf.printf "start: %s\n" (Int64.to_string dfa.start) in
     let () =
       Printf.printf "finals: %s\n" (layout_states Int64.to_string dfa.finals)
@@ -712,14 +712,23 @@ struct
   let union_dfa (dfa1 : dfa) (dfa2 : dfa) : dfa =
     minimize @@ determinize @@ union_nfa (inject dfa1) (inject dfa2)
 
-  (* TODO: debug it! *)
   let intersect_dfa (dfa1 : dfa) (dfa2 : dfa) : dfa =
     let dfa1 = normalize_dfa dfa1 in
     let dfa2 = normalize_dfa dfa2 in
-    let num1 = Int64.of_int @@ num_states_dfa dfa1 in
-    let mk_p (n1 : state) (n2 : state) = Int64.add n2 @@ Int64.mul num1 n1 in
-    let fst_p p = Int64.div p num1 in
-    let snd_p p = Int64.rem p num1 in
+    (* let () = Printf.printf "num = %i\n" (num_states_dfa dfa1) in *)
+    (* let () = layout_dfa dfa1 in *)
+    (* let () = layout_dfa dfa2 in *)
+    let num2 = Int64.of_int @@ num_states_dfa dfa2 in
+    let mk_p (n1 : state) (n2 : state) =
+      let res = Int64.add n2 @@ Int64.mul num2 n1 in
+      (* let () = *)
+      (*   Printf.printf "%s + %s*%s = %s\n" (Int64.to_string n2) *)
+      (*     (Int64.to_string num2) (Int64.to_string n1) (Int64.to_string res) *)
+      (* in *)
+      res
+    in
+    let fst_p p = Int64.div p num2 in
+    let snd_p p = Int64.rem p num2 in
     let seen = Hashtbl.create 1000 in
     let tbl = ref StateMap.empty in
     let update_tbl (s, c, d) =
@@ -732,6 +741,11 @@ struct
     in
     let rec visit state =
       if not (Hashtbl.mem seen state) then
+        (* let () = *)
+        (*   Printf.printf "state: (%s, %s)\n" *)
+        (*     (Int64.to_string (fst_p state)) *)
+        (*     (Int64.to_string (snd_p state)) *)
+        (* in *)
         let () = Hashtbl.add seen state () in
         let charmap1 = dfa1.next (fst_p state) in
         let charmap2 = dfa2.next (snd_p state) in
@@ -740,6 +754,10 @@ struct
             match CharMap.find_opt c charmap2 with
             | None -> ()
             | Some d2 ->
+                (* let () = *)
+                (*   Printf.printf "\t--[%s]-->(%s, %s)\n" (C.layout c) *)
+                (*     (Int64.to_string d1) (Int64.to_string d2) *)
+                (* in *)
                 let d = mk_p d1 d2 in
                 update_tbl (state, c, d);
                 visit d)
@@ -753,36 +771,38 @@ struct
           StateSet.fold (fun s2 -> StateSet.add (mk_p s1 s2)) dfa2.finals)
         dfa1.finals StateSet.empty
     in
-    minimize @@ { start; finals; next = construct_next !tbl }
+    let res = { start; finals; next = construct_next !tbl } in
+    (* let () = layout_dfa res in *)
+    minimize res
 
   let intersect_nfa (nfa1 : nfa) (nfa2 : nfa) : nfa =
     inject @@ intersect_dfa (determinize nfa1) (determinize nfa2)
 
-  let compile2dfa ctx (r : C.t regex) : dfa =
+  let compile2dfa (r : C.t regex) : dfa =
     let r = Regex.desugar r in
-    let r = Regex.limit_context ctx r in
+    let r = Regex.delimit_context r in
     let rec aux r =
       let res =
-        match regex_to_raw ctx r with
+        match regex_to_raw r with
         | Some r -> minimize @@ determinize @@ compile_from_raw_regex r
         | None -> (
             match r with
-            | ComplementA r -> complement_dfa ctx @@ aux r
+            | DComplementA { atoms; body } -> complement_dfa atoms @@ aux body
             | LandA (r1, r2) ->
-                complement_dfa ctx
-                @@ union_dfa
-                     (complement_dfa ctx @@ aux r1)
-                     (complement_dfa ctx @@ aux r2)
-                (* intersect_dfa (aux r1) (aux r2) *)
+                (* complement_dfa ctx *)
+                (* @@ union_dfa *)
+                (*      (complement_dfa ctx @@ aux r1) *)
+                (*      (complement_dfa ctx @@ aux r2) *)
+                intersect_dfa (aux r1) (aux r2)
             | _ -> _failatwith __FILE__ __LINE__ "die")
       in
-      let () =
-        Printf.printf "compile2dfa: %s\n"
-          (Sexplib.Sexp.to_string
-          @@ sexp_of_regex (fun c -> Sexplib.Std.sexp_of_string @@ C.layout c) r
-          )
-      in
-      let () = layout_dfa res in
+      (* let () = *)
+      (*   Printf.printf "compile2dfa: %s\n" *)
+      (*     (Sexplib.Sexp.to_string *)
+      (*     @@ sexp_of_regex (fun c -> Sexplib.Std.sexp_of_string @@ C.layout c) r *)
+      (*     ) *)
+      (* in *)
+      (* let () = layout_dfa res in *)
       res
     in
     aux r

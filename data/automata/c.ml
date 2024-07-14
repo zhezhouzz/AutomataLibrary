@@ -1,1 +1,1 @@
-let[@regex] a1 = starA anyA - starA a - starA b
+let[@regex] a1 = ctx [| a; b; c |] (starA anyA - starA a - starA b)

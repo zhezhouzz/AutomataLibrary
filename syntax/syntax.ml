@@ -8,4 +8,5 @@ include Typectx
 include Regex
 include Qregex
 include Nfa
+include Minterm
 include Ast

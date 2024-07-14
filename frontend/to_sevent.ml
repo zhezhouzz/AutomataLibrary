@@ -20,7 +20,17 @@ let pprint = function
            (List.split_by " " (fun x -> x.x) vs)
            (layout_prop phi)
 
+let layout_se = pprint
 let layout = pprint
+let tpEventRaw str = spf "<%s>" str
+
+let pprintRaw = function
+  | GuardEvent phi -> tpEventRaw @@ layout_propRaw phi
+  | EffEvent { op; vs; phi } ->
+      tpEventRaw
+      @@ spf "%s %s | %s" op
+           (List.split_by " " (fun x -> x.x) vs)
+           (layout_propRaw phi)
 
 let get_opopt expr =
   match To_op.string_to_op_opt (get_denote expr) with
@@ -98,7 +108,12 @@ let sevent_of_expr_aux expr =
       | _ ->
           let vs, phi = desugar_sevent e in
           EffEvent { op; vs; phi })
-  | _ -> _failatwith __FILE__ __LINE__ "die"
+  | _ ->
+      let () =
+        Printf.printf "unknown symbolic event: %s\n"
+        @@ Pprintast.string_of_expression expr
+      in
+      _failatwith __FILE__ __LINE__ "die"
 
 let sevent_of_expr expr =
   let rty = sevent_of_expr_aux expr in

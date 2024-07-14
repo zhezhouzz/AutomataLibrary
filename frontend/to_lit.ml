@@ -40,7 +40,8 @@ let rec layout_lit_to_smtlib2 expr =
 
 and layout_typed_lit_to_smtlib2 expr = layout_lit_to_smtlib2 expr.x
 
-let layout lit = Pprintast.string_of_expression @@ lit_to_expr lit
+let layout_lit lit = Pprintast.string_of_expression @@ lit_to_expr lit
+let layout = layout_lit
 let layout_typed_lit lit = layout lit.x
 
 let rec lit_of_expr expr =

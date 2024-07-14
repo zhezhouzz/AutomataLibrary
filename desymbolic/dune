@@ -1,0 +1,10 @@
+(library
+ (public_name automata_library.desymbolic)
+ (name desymbolic)
+ (wrapped true)
+ (libraries language core)
+ (modules
+   head
+   mapping
+   desymbolic
+))

@@ -82,6 +82,22 @@ let psetting =
     layout_mp = (fun x -> x);
   }
 
+let rawsetting =
+  {
+    sym_true = "true";
+    sym_false = "false";
+    sym_and = " && ";
+    sym_or = " || ";
+    sym_not = "~";
+    sym_implies = "=>";
+    sym_iff = "<=>";
+    sym_forall = "∀";
+    sym_exists = "∃";
+    layout_typedid = (fun x -> x.x);
+    (* (fun x ->          Printf.spf "(%s:%s)" x.x (Ty.layout x.ty)); *)
+    layout_mp = (fun x -> x);
+  }
+
 let coqsetting =
   {
     sym_true = "True";

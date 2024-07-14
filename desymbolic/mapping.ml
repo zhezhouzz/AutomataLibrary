@@ -1,0 +1,156 @@
+open Language
+open Head
+open Zzdatatype.Datatype
+
+module Predictable = struct
+  type lit = Nt.t Ast.lit
+  type prop = Nt.t Ast.prop
+
+  let mk_true = mk_true
+  let mk_false = mk_false
+  let mk_lit lit = Ast.Lit lit #: Nt.bool_ty
+
+  let mk_ite cond bencht benchf =
+    Ast.Ite (Ast.Lit cond #: Nt.bool_ty, bencht, benchf)
+
+  let mk_and lit prop = Ast.(smart_add_to (Lit lit #: Nt.bool_ty) prop)
+
+  let mk_not_lit_and lit prop =
+    Ast.(smart_add_to (Not (Lit lit #: Nt.bool_ty)) prop)
+
+  let layout_lit = layout_lit
+end
+
+module DT = Dtree.Dt.F (Predictable)
+
+type mt_tabs = (int * (Nt.t lit, bool) Hashtbl.t) list
+
+type all_mt_tabs = {
+  global_tab : mt_tabs;
+  local_tabs : mt_tabs StrMap.t IntMap.t;
+}
+
+type all_dt = { global_dt : DT.t; local_dts : DT.t StrMap.t IntMap.t }
+
+let all_to_tab { global_features; local_features } { global_dt; local_dts } =
+  let global_tab = DT.dt_to_tab (global_features, global_dt) in
+  let local_tabs =
+    IntMap.map
+      (fun m ->
+        StrMap.mapi
+          (fun op x ->
+            let local_feature = StrMap.find "all_to_tab" local_features op in
+            DT.dt_to_tab (snd local_feature, x))
+          m)
+      local_dts
+  in
+  (* let local_tabs = IntMap.to_value_list local_tabs in *)
+  { global_tab; local_tabs }
+
+let tab_to_prop tab =
+  let res =
+    Hashtbl.fold
+      (fun lit b res ->
+        let lit = lit #: Nt.bool_ty in
+        if b then Lit lit :: res else Not (Lit lit) :: res)
+      tab []
+  in
+  And res
+
+let print_opt_stat (num, test_num) features =
+  let total_fv = Sugar.pow 2 (Array.length features) in
+  Printf.printf "valid(%i/%i); cost(%i/%i = %f)\n" num total_fv test_num
+    total_fv
+    (float_of_int test_num /. float_of_int total_fv)
+
+let print_local_fv gidx (op, features) l =
+  List.iter
+    (fun (idx, tab) ->
+      let pos, neg =
+        Array.fold_left
+          (fun (pos, neg) lit ->
+            if Hashtbl.find tab lit then (lit :: pos, neg) else (pos, lit :: neg))
+          ([], []) features
+      in
+      let () =
+        Printf.printf "%s_%i_%i:: POS [%s]  NEG [%s]\n" op gidx idx
+          (List.split_by_comma layout_lit pos)
+          (List.split_by_comma layout_lit neg)
+      in
+      ())
+    l
+
+let print_global_fv features l =
+  List.iter
+    (fun (idx, tab) ->
+      let pos, neg =
+        Array.fold_left
+          (fun (pos, neg) lit ->
+            if Hashtbl.find tab lit then (lit :: pos, neg) else (pos, lit :: neg))
+          ([], []) features
+      in
+      let () =
+        Printf.printf "global_%i:: POS [%s]  NEG [%s]\n" idx
+          (List.split_by_comma layout_lit pos)
+          (List.split_by_comma layout_lit neg)
+      in
+      ())
+    l
+
+let mk_mt_tab check_prop_sat { global_features; local_features } =
+  (* let local_features_array = *)
+  (*   StrMap.map (fun (_, features) -> Array.of_list features) local_features *)
+  (* in *)
+  let () =
+    Printf.printf "[Global DT]:\n";
+    Head.pprint_tab global_features
+  in
+  let test_num, global_dt =
+    DT.dynamic_classify (fun prop -> check_prop_sat ([], prop)) global_features
+  in
+  let global_tab = DT.dt_to_tab (global_features, global_dt) in
+  let () =
+    Printf.printf "[Global DT]\n";
+    print_opt_stat (List.length global_tab, test_num) global_features
+  in
+  let () = print_global_fv global_features global_tab in
+  let local_dts =
+    StrMap.mapi
+      (fun op (vs, features) ->
+        let () =
+          Printf.printf "[%s DT]:\n" op;
+          Head.pprint_tab features
+        in
+        let test_num, dt =
+          DT.dynamic_classify (fun prop -> check_prop_sat (vs, prop)) features
+        in
+        let () =
+          Printf.printf "[%s DT]\n" op;
+          print_opt_stat (0, test_num) features
+        in
+        (vs, dt))
+      local_features
+  in
+  let dts =
+    StrMap.mapi
+      (fun op (vs, dt) ->
+        let features = snd @@ StrMap.find "mk_mt_tab" local_features op in
+        let () =
+          Printf.printf "[Refine %s DT]:\n" op;
+          Head.pprint_tab features
+        in
+        let test_num, dt =
+          DT.refine_dt_under_prop
+            (fun prop -> check_prop_sat (vs, prop))
+            mk_true (features, dt)
+        in
+        let dt = DT.dt_to_tab (features, dt) in
+        let () =
+          Printf.printf "[Refine %s DT]\n" op;
+          print_opt_stat (List.length dt, test_num) features
+        in
+        let () = print_local_fv 0 (op, features) dt in
+        dt)
+      local_dts
+  in
+  dts

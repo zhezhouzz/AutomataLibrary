@@ -8,9 +8,27 @@ include Regex
 include Nfa
 include Qregex
 include Typectx
-
-(* include FiniteAutomata *)
+include Minterm
 include Constructor_declaration
 include Item
 include Mtyped
 include Sugar
+
+module StringC = struct
+  include String
+
+  let layout x = x
+end
+
+module Int64C = struct
+  include Int64
+
+  let layout = to_string
+end
+
+module DesymLabel = struct
+  type t = string * int
+
+  let compare (a : t) (b : t) = Stdlib.compare a b
+  let layout (op, id) = op ^ ":" ^ string_of_int id
+end

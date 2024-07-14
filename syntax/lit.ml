@@ -67,3 +67,60 @@ let typed_lit_force_avar_opt lit =
 let typed_lit_force_ac_opt lit = match lit.x with AC c -> Some c | _ -> None
 let mk_true = AC (B true)
 let mk_false = AC (B true)
+
+(** For Nt.t typed *)
+
+let eq_lit l1 l2 =
+  Sexplib.Sexp.equal (sexp_of_lit Nt.sexp_of_t l1) (sexp_of_lit Nt.sexp_of_t l2)
+
+let mk_lit_eq_lit ty lx ly =
+  AAppOp (Op.typed_op_string ty, [ lx #: ty; ly #: ty ])
+
+let mk_var_eq_var ty x y =
+  let lx = AVar x in
+  let ly = AVar y in
+  AAppOp (Op.typed_op_string ty, [ lx #: ty; ly #: ty ])
+
+let mk_int_l1_eq_l2 l1 l2 =
+  AAppOp (Op.typed_op_string Nt.int_ty, [ l1 #: Nt.int_ty; l2 #: Nt.int_ty ])
+
+let get_var_opt = function AVar x -> Some x | _ -> None
+
+let get_subst_pair a b =
+  match get_var_opt a with Some a -> [ (a, b) ] | None -> []
+
+let get_eqlits lit =
+  match lit with
+  | AAppOp (op, [ a; b ]) when String.equal eq_op op.x ->
+      get_subst_pair a.x b.x @ get_subst_pair b.x a.x
+  | _ -> []
+
+let find_assignment_of_intvar lit x =
+  match lit with
+  | AAppOp (op, [ a; b ]) when String.equal eq_op op.x -> (
+      match (a.x, b.x) with
+      | AVar y, _ when String.equal x y.x -> Some b.x
+      | _, AVar y when String.equal x y.x -> Some a.x
+      | _, _ -> None)
+  | _ -> None
+
+let rec get_non_unit_lit lit =
+  (* let () = *)
+  (*   Env.show_log "gather" @@ fun _ -> *)
+  (*   Printf.printf ">>>>> get_non_unit_lit: %s\n" *)
+  (*     (Sexplib.Sexp.to_string (sexp_of_lit lit.x)) *)
+  (* in *)
+  if Nt.eq Nt.unit_ty lit.ty then None
+  else
+    match lit.x with
+    | AAppOp (_, args) -> (
+        (* let () = *)
+        (*   Env.show_log "gather" @@ fun _ -> *)
+        (*   Printf.printf ">>>>> %s: %s\n" (Op.to_string op.x) *)
+        (*     (List.split_by_comma (fun x -> layout x.ty) args) *)
+        (* in *)
+        let res = List.filter_map get_non_unit_lit args in
+        match res with [] -> None | _ -> Some lit.x)
+    | _ -> Some lit.x
+
+let get_op_args lit = match lit with AAppOp (_, args) -> args | _ -> []

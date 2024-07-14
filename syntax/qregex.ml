@@ -1,5 +1,6 @@
 open Ast
 
-let qregex2regex = function
+let rec get_regex_from_qregex = function
   | Regex regex -> regex
-  | _ -> _failatwith __FILE__ __LINE__ "is quantified"
+  | RForall { body; _ } -> get_regex_from_qregex body
+  | RExists { body; _ } -> get_regex_from_qregex body

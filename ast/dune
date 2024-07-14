@@ -22,6 +22,7 @@
    regex
    nfa
    qregex
+   minterm
    typectx
    constructor_declaration
    item
