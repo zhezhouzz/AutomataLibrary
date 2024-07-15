@@ -4,6 +4,7 @@ open Prop
 open Sevent
 open Regex
 open Qregex
+open Inst
 open Constructor_declaration
 
 type 't item =
@@ -17,4 +18,6 @@ type 't item =
   | MAxiom of { name : string; prop : 't prop }
   | MFAImp of { name : string; automata : ('t, string) qregex }
   | MSFAImp of { name : string; automata : ('t, 't sevent) qregex }
+  | MConstant of { name : ('t, string) typed; const : Constant.constant }
+  | MInst of { name : string; inst : 't inst }
 [@@deriving sexp]

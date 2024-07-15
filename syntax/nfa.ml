@@ -534,7 +534,9 @@ module MakeAutomata (C : CHARACTER) = struct
     (* in *)
     let rec aux (regex : C.t regex) : CharSet.t raw_regex option =
       match regex with
-      | SetMinusA _ | ComplementA _ | AnyA | CtxOp _ | Ctx _ -> failwith "die"
+      | SetMinusA _ | ComplementA _ | AnyA | CtxOp _ | Ctx _ | Repeat _
+      | RepeatN _ ->
+          failwith "die"
       | LandA _ | DComplementA _ -> None
       | MultiAtomic l -> Some (Char (CharSet.of_list l))
       | EmptyA -> Some Empty

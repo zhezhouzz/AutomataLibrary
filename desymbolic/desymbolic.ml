@@ -56,6 +56,7 @@ let partial_evaluate_regex global_tab regex =
   in
   let rec aux regex =
     match regex with
+    | Repeat _ | RepeatN _ -> _failatwith __FILE__ __LINE__ "die"
     | EmptyA | AnyA | EpsilonA -> regex
     | Atomic se -> partial_evaluate_sevent global_tab se
     | MultiAtomic ses ->
@@ -101,6 +102,7 @@ let desymbolic_local dts regex =
   in
   let rec aux regex =
     match regex with
+    | Repeat _ | RepeatN _ -> _failatwith __FILE__ __LINE__ "die"
     | EmptyA -> EmptyA
     | AnyA -> AnyA
     | EpsilonA -> EpsilonA

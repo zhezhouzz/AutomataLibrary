@@ -12,12 +12,14 @@ type 'a regex =
   | DComplementA of { atoms : 'a list; body : 'a regex }
   | MultiAtomic of 'a list
   (* the rest are extend fields *)
+  | Repeat of string * 'a regex
   | AnyA
   | ComplementA of 'a regex
   | Ctx of { atoms : 'a list; body : 'a regex }
   | CtxOp of { op_names : string list; body : 'a regex }
   (* a syntax sugar *)
   | SetMinusA of 'a regex * 'a regex
+  | RepeatN of int * 'a regex
 [@@deriving sexp]
 
 type 'c raw_regex =
@@ -40,6 +42,8 @@ let map_label_in_regex (type a b) (f : a -> b) (regex : a regex) : b regex =
     | LorA (r1, r2) -> LorA (aux r1, aux r2)
     | LandA (r1, r2) -> LandA (aux r1, aux r2)
     | SeqA (r1, r2) -> SeqA (aux r1, aux r2)
+    | Repeat (x, r) -> Repeat (x, aux r)
+    | RepeatN (n, r) -> RepeatN (n, aux r)
     | StarA r -> StarA (aux r)
     | ComplementA r -> ComplementA (aux r)
     | DComplementA { atoms; body } ->

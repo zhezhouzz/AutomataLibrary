@@ -141,7 +141,7 @@ let read_automata source_file () =
   ()
 
 let test_sfa1 code =
-  let srl = get_sfa_by_name code "a1" in
+  let srl = get_sfa_by_name code "poly_spec" in
   let srl = delimit_context @@ desugar srl in
   let bmap, rl = Desymbolic.desymbolic (fun _ -> true) srl in
   let () = Printf.printf "%s\n" @@ layout_desym_regex rl in

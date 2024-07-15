@@ -1,12 +1,48 @@
 open Ast
 open Zzdatatype.Datatype
 
+let subst_regex_const regex name m =
+  let subst_se se = Sevent.subst_sevent_instance name (AC (I m)) se in
+  let rec aux regex =
+    match regex with
+    | Repeat (x, r) when String.equal name x -> RepeatN (m, aux r)
+    | Repeat (x, r) -> Repeat (x, aux r)
+    | RepeatN (n, r) -> RepeatN (n, aux r)
+    | EmptyA | EpsilonA | AnyA -> regex
+    | Atomic se -> Atomic (subst_se se)
+    | MultiAtomic ses -> MultiAtomic (List.map subst_se ses)
+    | LorA (r1, r2) -> LorA (aux r1, aux r2)
+    | LandA (r1, r2) -> LandA (aux r1, aux r2)
+    | SeqA (r1, r2) -> SeqA (aux r1, aux r2)
+    | StarA r -> StarA (aux r)
+    | ComplementA r -> ComplementA (aux r)
+    | DComplementA { atoms; body } ->
+        DComplementA { atoms = List.map subst_se atoms; body = aux body }
+    | SetMinusA (r1, r2) -> SetMinusA (aux r1, aux r2)
+    | CtxOp { op_names; body } -> CtxOp { op_names; body = aux body }
+    | Ctx { atoms; body } ->
+        Ctx { atoms = List.map subst_se atoms; body = aux body }
+  in
+  aux regex
+
 let labels_to_multiatomic ls =
   let ls = List.slow_rm_dup (fun a b -> 0 == Stdlib.compare a b) ls in
   match ls with [] -> EmptyA | [ e ] -> Atomic e | _ -> MultiAtomic ls
 
+let mk_repeat (n, r) =
+  let rec aux (n, r) =
+    match n with
+    | 0 -> EpsilonA
+    | 1 -> r
+    | _ when n > 1 -> SeqA (r, aux (n - 1, r))
+    | _ -> _failatwith __FILE__ __LINE__ "invalid repeat"
+  in
+  aux (n, r)
+
 let rec desugar regex =
   match regex with
+  | Repeat _ -> _failatwith __FILE__ __LINE__ "should be instantiated"
+  | RepeatN (n, r) -> mk_repeat (n, desugar r)
   | EmptyA | EpsilonA | AnyA | Atomic _ | MultiAtomic _ -> regex
   | LorA (r1, r2) -> (
       match (desugar r1, desugar r2) with
@@ -102,6 +138,8 @@ let delimit_context (regex : 'a regex) : 'a regex =
   in
   let rec aux ctx regex =
     match regex with
+    | Repeat (n, r) -> Repeat (n, aux ctx r)
+    | RepeatN (n, r) -> RepeatN (n, aux ctx r)
     | EmptyA | EpsilonA | Atomic _ | MultiAtomic _ -> regex
     | ComplementA EmptyA -> StarA (MultiAtomic (force_ctx ctx))
     | ComplementA EpsilonA ->
@@ -129,6 +167,8 @@ let delimit_context (regex : 'a regex) : 'a regex =
 let gather_regex regex =
   let rec aux regex m =
     match regex with
+    | Repeat (_, r) -> aux r m
+    | RepeatN (_, r) -> aux r m
     | EmptyA -> m
     | AnyA -> m
     | EpsilonA -> m

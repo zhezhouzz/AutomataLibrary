@@ -25,6 +25,7 @@
    minterm
    typectx
    constructor_declaration
+   inst
    item
    ast
  )

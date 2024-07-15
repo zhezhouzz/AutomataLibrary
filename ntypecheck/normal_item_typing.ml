@@ -1,6 +1,8 @@
 open Language
 open Normal_prop_typing
 open Normal_qregex_typing
+open Normal_constant_typing
+open Normal_inst_typing
 
 type t = Nt.t
 
@@ -20,7 +22,7 @@ let item_mk_ctx (e : t option item) =
       xs
   | MValDecl x -> [ __force_typed __FILE__ __LINE__ x ]
   | MMethodPred mp -> [ __force_typed __FILE__ __LINE__ mp ]
-  | MAxiom _ | MFAImp _ | MSFAImp _ -> []
+  | MAxiom _ | MFAImp _ | MSFAImp _ | MConstant _ | MInst _ -> []
 (* | _ -> _failatwith __FILE__ __LINE__ "not predefine" *)
 
 let item_check ctx (e : t option item) : t ctx * t item =
@@ -48,7 +50,14 @@ let item_check ctx (e : t option item) : t ctx * t item =
   | MFAImp { name; automata } ->
       (ctx, MFAImp { name; automata = bi_str_qregex_check ctx automata })
   | MSFAImp { name; automata } ->
-      (ctx, MSFAImp { name; automata = bi_symbolic_qregex_check ctx automata })
+      let automata = bi_symbolic_qregex_check ctx automata in
+      (add_to_right ctx name #: (get_type automata), MSFAImp { name; automata })
+  | MConstant { name; const } ->
+      let t = infer_constant const in
+      let name = name.x #: t in
+      (add_to_right ctx name, MConstant { name; const })
+  | MInst { name; inst } ->
+      (ctx, MInst { name; inst = (bi_typed_inst_infer ctx inst).x })
 (* | _ -> _failatwith __FILE__ __LINE__ "die" *)
 
 let struct_mk_ctx ctx l =

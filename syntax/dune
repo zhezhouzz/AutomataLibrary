@@ -25,6 +25,7 @@
    typectx
    nfa
    minterm
+   inst
    syntax
  )
  (preprocess

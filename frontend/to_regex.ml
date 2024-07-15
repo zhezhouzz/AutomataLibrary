@@ -39,6 +39,16 @@ let of_expr_aux label_of_expr expr =
         | "range", [ a ] ->
             let atoms = parse_labels a in
             MultiAtomic atoms
+        | "repeat", [ a; b ] -> (
+            let lit = To_lit.lit_of_expr a in
+            let r = aux b in
+            match lit with
+            | AVar x -> Repeat (x.x, r)
+            | AC (I i) -> RepeatN (i, r)
+            | _ ->
+                _failatwith __FILE__ __LINE__
+                @@ spf "unknown repeat %s" (Pprintast.string_of_expression expr)
+            )
         | f, _ -> _failatwith __FILE__ __LINE__ @@ spf "unknown regular op %s" f
         )
     | Pexp_sequence (a, b) -> SeqA (aux a, aux b)
@@ -77,21 +87,23 @@ let rec pprint_aux layout_label = function
   | StarA a -> (spf "%s*" (p_pprint layout_label a), true)
   | AnyA -> ("•", true)
   | DComplementA { atoms; body } ->
-      ( spf "[%s]{%sᶜ}"
+      ( spf "Ctx[%s]{%sᶜ}"
           (List.split_by " " layout_label atoms)
           (p_pprint layout_label body),
         true )
   | Ctx { atoms; body } ->
-      ( spf "[%s]{%s}"
+      ( spf "Ctx[%s]{%s}"
           (List.split_by " " layout_label atoms)
           (p_pprint layout_label body),
         true )
   | CtxOp { op_names; body } ->
-      ( spf "[%s]{%s}"
+      ( spf "Ctx[%s]{%s}"
           (List.split_by " " (fun x -> x) op_names)
           (p_pprint layout_label body),
         true )
   | ComplementA a -> (spf "%sᶜ" (p_pprint layout_label a), true)
+  | Repeat (x, r) -> (spf "repeat[%s]{%s}" x (p_pprint layout_label r), true)
+  | RepeatN (x, r) -> (spf "repeat[%i]{%s}" x (p_pprint layout_label r), true)
 
 and p_pprint layout_label a =
   let str, is_p = pprint_aux layout_label a in

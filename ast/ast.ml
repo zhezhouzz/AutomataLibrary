@@ -11,8 +11,11 @@ include Typectx
 include Minterm
 include Constructor_declaration
 include Item
+include Inst
 include Mtyped
 include Sugar
+
+let ty_set (t : Nt.t) = Nt.Ty_constructor ("set", [ t ])
 
 module StringC = struct
   include String

@@ -1,10 +1,15 @@
-val write : int -> unit
-val read : int -> unit
-val ( == ) : int -> int -> bool
-val ( != ) : int -> int -> bool
+val write : int -> int -> unit
+val read : int -> int -> unit
+val ( == ) : 'a -> 'a -> bool
+val ( != ) : 'a -> 'a -> bool
 
-let[@sregex] a1 ((valDom [@pi]) : int) ((y [@forall]) : valDom) =
+let[@sregex] poly_spec ((server [@pi]) : int) ((valDom [@pi]) : int)
+    ((server [@forall]) : server) ((y [@forall]) : valDom) =
   ctxOp [| read; write |]
-    (starA (Write (x, x != y));
-     anyA;
-     starA (Read (x, x == y)))
+    (starA (Write (s, x, s == server && x != y));
+     repeat 2 anyA;
+     starA (Read (s, x, s == server && x == y)))
+
+let[@const] server = [| 1; 2 |]
+let[@const] values = [| 1; 2; 3 |]
+let[@inst] client = poly_spec server values

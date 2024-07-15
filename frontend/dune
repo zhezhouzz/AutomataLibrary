@@ -17,6 +17,7 @@
    to_regex
    to_qregex
    to_type_dec
+   to_inst
    to_item
    front
  )

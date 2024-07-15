@@ -34,6 +34,12 @@ let bi_regex_check (type a b) (f : string -> t -> b)
             op_names
         in
         Ctx { atoms; body = aux ctx body }
+    | Repeat (x, r) ->
+        let _ = Normal_id_typing.bi_typed_id_check ctx x #: None Nt.Ty_int in
+        Repeat (x, aux ctx r)
+    | RepeatN (n, r) ->
+        let _ = Sugar._assert __FILE__ __LINE__ "" (n >= 0) in
+        RepeatN (n, aux ctx r)
     (* CtxOp { op_names; body = aux ctx body } *)
   in
   aux ctx regex
