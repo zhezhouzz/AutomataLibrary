@@ -1,9 +1,11 @@
 include Syntax
 include Common
+include To_constant
 include To_id
 include To_lit
 include To_sevent
 include To_prop
+include To_inst
 include To_item
 
 (* module Nt = struct *)

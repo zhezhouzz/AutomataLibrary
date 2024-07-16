@@ -67,6 +67,12 @@ let ocaml_structure_item_to_item structure =
                      name = name #: None;
                      const = To_constant.expr_to_constant expr;
                    }
+             | "typedef" ->
+                 MConstant
+                   {
+                     name = name #: None;
+                     const = To_constant.expr_to_constant expr;
+                   }
              | notation when String.equal notation inst_str ->
                  MInst { name; inst = To_inst.inst_of_expr expr }
              (* | "assert" -> *)

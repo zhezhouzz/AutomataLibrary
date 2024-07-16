@@ -563,19 +563,19 @@ module MakeAutomata (C : CHARACTER) = struct
 
   let layout_dfa (dfa : dfa) =
     (* let open Zzdatatype.Datatype in *)
-    let () = Printf.printf "start: %s\n" (Int64.to_string dfa.start) in
-    let () =
-      Printf.printf "finals: %s\n" (layout_states Int64.to_string dfa.finals)
+    let res = Printf.sprintf "start: %s\n" (Int64.to_string dfa.start) in
+    let res =
+      Printf.sprintf "%sfinals: %s\n" res
+        (layout_states Int64.to_string dfa.finals)
     in
-    let () =
+    let res =
       fold_transitions
-        (fun (s, c, d) _ ->
-          Printf.printf "\t%s--[%s]-->%s\n" (Int64.to_string s) (C.layout c)
-            (Int64.to_string d))
-        dfa ()
+        (fun (s, c, d) res ->
+          Printf.sprintf "%s\t%s--[%s]-->%s\n" res (Int64.to_string s)
+            (C.layout c) (Int64.to_string d))
+        dfa res
     in
-    let () = print_newline () in
-    ()
+    spf "%s\n" res
 
   let complete_dfa (ctx : C.t list) (dfa : dfa) =
     determinize @@ complete_nfa ctx @@ inject dfa

@@ -60,6 +60,14 @@ module MakeAA (C : CHARAC) = struct
 
   let from_index_regex (m : C.char_idx) (regex : Int64.t regex) : C.t regex =
     map_label_in_regex (C.id2c m) regex
+
+  open Core
+
+  let save_as_digraph sfa filename =
+    Format.fprintf
+      (Format.formatter_of_out_channel @@ Out_channel.create filename)
+      "%a@." format_digraph
+      (digraph_of_nfa (inject sfa))
 end
 
 module StrAutomata = MakeAA (StringC)

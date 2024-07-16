@@ -11,54 +11,12 @@ let read_ocaml_file source_file () =
   let code = ocaml_structure_to_items code in
   code
 
-(* let test_fa = function *)
-(*   | MFAImp { name; automata } -> *)
-(*       let regex = qregex2regex automata in *)
-(*       let ctx = [ "a"; "b"; "c" ] in *)
-(*       let nfa = StrAutomata.compile ctx regex in *)
-(*       let () = *)
-(*         print_endline "NFA: "; *)
-(*         StrAutomata.layout_nfa nfa *)
-(*       in *)
-(*       let dfa = StrAutomata.determinize nfa in *)
-(*       let () = *)
-(*         print_endline "DFA: "; *)
-(*         StrAutomata.layout_dfa dfa *)
-(*       in *)
-(*       let dfa = StrAutomata.minimize dfa in *)
-(*       let () = *)
-(*         print_endline "DFA: "; *)
-(*         StrAutomata.layout_dfa dfa *)
-(*       in *)
-(*       let nfa' = StrAutomata.complete_nfa ctx (StrAutomata.inject dfa) in *)
-(*       let () = *)
-(*         print_endline "Complete NFA: "; *)
-(*         StrAutomata.layout_nfa nfa' *)
-(*       in *)
-(*       let dfa' = StrAutomata.determinize nfa' in *)
-(*       let () = *)
-(*         print_endline "Complete DFA: "; *)
-(*         StrAutomata.layout_dfa dfa' *)
-(*       in *)
-(*       let dfa' = StrAutomata.swap_dfa dfa' in *)
-(*       let () = *)
-(*         print_endline "Complement DFA: "; *)
-(*         StrAutomata.layout_dfa dfa' *)
-(*       in *)
-(*       let dfa' = StrAutomata.normalize_dfa dfa' in *)
-(*       let () = *)
-(*         print_endline "Complement DFA: "; *)
-(*         StrAutomata.layout_dfa dfa' *)
-(*       in *)
-(*       let dfa'' = *)
-(*         StrAutomata.union_dfa StrAutomata.(determinize @@ compile ctx AnyA) dfa *)
-(*       in *)
-(*       let () = *)
-(*         print_endline "Union DFA: "; *)
-(*         StrAutomata.layout_dfa dfa'' *)
-(*       in *)
-(*       () *)
-(*   | _ -> failwith "die" *)
+let read_source_file source_file () =
+  let postfix = List.last @@ String.split source_file ~on:'.' in
+  match postfix with
+  | "ml" -> read_ocaml_file source_file ()
+  | "p" -> Frontp.parse source_file
+  | _ -> failwith @@ spf "wrong file extension *.%s" postfix
 
 let get_fa_by_name code n =
   let tmp =
@@ -133,7 +91,7 @@ let test_fa3 code =
   ()
 
 let read_automata source_file () =
-  let code = read_ocaml_file source_file () in
+  let code = read_source_file source_file () in
   (* let () = Printf.printf "%s\n" @@ layout_opt_structure code in *)
   let _, code = struct_check emp code in
   (* let () = Printf.printf "%s\n" @@ layout_structure code in *)
@@ -147,32 +105,39 @@ let test_sfa1 code =
   let () = Printf.printf "%s\n" @@ layout_desym_regex rl in
   let module DFA = DesymFA in
   let fa = DFA.compile2dfa rl in
-  let fa_dot = DFA.(digraph_of_nfa (inject fa)) in
-  (* let str = Format.asprintf "%a@." format_digraph fa_dot in *)
-  let () =
-    Format.fprintf
-      (Format.formatter_of_out_channel @@ Out_channel.create "tmp.dot")
-      "%a@." format_digraph fa_dot
-  in
+  (* let () = DFA.save_as_digraph fa "tmp.dot" in *)
   let sfa = SFA.from_desym_dfa bmap fa in
-  let () = SFA.layout_dfa sfa in
-  let () =
-    Format.fprintf
-      (Format.formatter_of_out_channel @@ Out_channel.create "tmp.dot")
-      "%a@." format_digraph
-      SFA.(digraph_of_nfa (inject sfa))
-  in
-  (* let head = Desymbolic.ctx_ctx_init srl in *)
-  (* let () = Desymbolic.pprint_head head in *)
-  (* let () = layout_sy *)
+  let () = Printf.printf "%s\n" @@ SFA.layout_dfa sfa in
+  let () = SFA.save_as_digraph sfa "tmp.dot" in
   ()
 
 let read_sfa source_file () =
-  let code = read_ocaml_file source_file () in
+  let code = read_source_file source_file () in
   let () = Printf.printf "%s\n" @@ layout_opt_structure code in
   let _, code = struct_check emp code in
   let () = Printf.printf "%s\n" @@ layout_structure code in
-  let () = test_sfa1 code in
+  let _, machines = Instantiate.interp_items emp code in
+  let () =
+    StrMap.iter
+      (fun name m ->
+        Printf.printf "machine %s:\n%s\n" name
+        @@ Instantiate.layout_symbolic_machine m)
+      machines
+  in
+  let machines = Instantiate.machines_to_fa_machines machines in
+  (* let machine = StrMap.find "die" machines "client" in *)
+  let () =
+    StrMap.iter
+      (fun name m ->
+        let () =
+          Printf.printf "machine %s:\n%s\n" name
+          @@ Instantiate.layout_sfa_machine m
+        in
+        let () = SFA.save_as_digraph m.reg "tmp.dot" in
+        ())
+      machines
+  in
+  (* let () = test_sfa1 code in *)
   ()
 
 let two_param message f =

@@ -23,9 +23,16 @@ let partial_evaluate_prop global_tab prop =
   aux prop
 
 let models_lit tab lit =
+  (* let () = *)
+  (*   Printf.printf "%s\n" *)
+  (*   @@ List.split_by_comma layout_lit *)
+  (*   @@ List.of_seq @@ Hashtbl.to_seq_keys tab *)
+  (* in *)
   match Hashtbl.find_opt tab lit.x with
   | Some b -> b
-  | None -> _failatwith __FILE__ __LINE__ "tab_models_lit"
+  | None ->
+      _failatwith __FILE__ __LINE__
+        (spf "tab_models_lit(%s)" (layout_lit lit.x))
 
 let models_prop m prop =
   let rec aux prop =
@@ -180,3 +187,28 @@ let desymbolic checker srl =
   let srl' = desymbolic_local dts srl in
   let backward_maping = mk_backward_mapping head (dts_to_backward_dts dts) in
   (backward_maping, srl')
+
+(* let desymbolic_qregex checker qregex = *)
+(*   let head = ctx_ctx_init (get_regex_from_qregex qregex) in *)
+(*   (\* let () = Env.show_log "desymbolic" @@ fun _ -> Head.pprint_head head in *\) *)
+(*   let dts = Mapping.mk_mt_tab checker head in *)
+(*   let srl' = map_qregex_body (desymbolic_local dts) qregex in *)
+(*   let backward_maping = mk_backward_mapping head (dts_to_backward_dts dts) in *)
+(*   (backward_maping, srl') *)
+
+let desymbolic_machine checker { binding; reg } =
+  let () = Pp.printf "\n@{<bold>Input:@}\n%s\n" (layout_symbolic_regex reg) in
+  let reg = desugar reg in
+  let () =
+    Pp.printf "\n@{<bold>After Desugar:@}\n%s\n" (layout_symbolic_regex reg)
+  in
+  let reg = delimit_context reg in
+  let () =
+    Pp.printf "\n@{<bold>After Delimit Context@}:\n%s\n"
+      (layout_symbolic_regex reg)
+  in
+  let bamp, q = desymbolic checker reg in
+  let () =
+    Pp.printf "\n@{<bold>After Desymbolic:@}\n%s\n" (layout_desym_regex q)
+  in
+  (bamp, { binding; reg = q })

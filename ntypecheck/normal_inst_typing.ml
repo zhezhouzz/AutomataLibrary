@@ -25,9 +25,7 @@ and bi_typed_inst_infer (ctx : t ctx) (lit : t option inst) : (t, t inst) typed
       let id =
         match id.ty with
         | None -> bi_typed_id_infer ctx id
-        | Some ty ->
-            let _ = failwith "endsd" in
-            id.x #: ty
+        | Some ty -> id.x #: ty
       in
       (* let () = Printf.printf "%s --> %s\n" id.x (Nt.layout id.ty) in *)
       (IVar id) #: id.ty
@@ -36,6 +34,11 @@ and bi_typed_inst_infer (ctx : t ctx) (lit : t option inst) : (t, t inst) typed
   | IApp (mp, arg) ->
       let mp = bi_typed_inst_infer ctx mp in
       let arg = bi_typed_inst_infer ctx arg in
+      (* let () = *)
+      (*   Printf.printf "%s -- %s\n" *)
+      (*     (layout_inst Nt.layout mp.x) *)
+      (*     (layout_inst Nt.layout arg.x) *)
+      (* in *)
       let mp_ty =
         Nt._type_unify __FILE__ __LINE__ mp.ty (Nt.mk_arr arg.ty Ty_unknown)
       in

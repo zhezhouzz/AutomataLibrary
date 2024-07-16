@@ -9,7 +9,7 @@ open To_constant
 let rec inst_of_expr expr =
   match expr.pexp_desc with
   | Pexp_ident id -> IVar (longid_to_id id) #: None
-  | Pexp_constant _ -> IConst (expr_to_constant expr)
+  | Pexp_constant _ | Pexp_array _ -> IConst (expr_to_constant expr)
   | Pexp_apply (func, args) ->
       let func = inst_of_expr func in
       let args = List.map (fun x -> inst_of_expr @@ snd x) args in

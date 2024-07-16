@@ -7,6 +7,8 @@
   language
   ntypecheck
   desymbolic
+  instantiate
+  frontp
   )
  (modules
   caux

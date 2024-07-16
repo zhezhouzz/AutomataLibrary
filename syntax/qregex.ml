@@ -26,3 +26,12 @@ let subst_qregex_const regex name c =
     | Regex r -> Regex (Regex.subst_regex_const r name c)
   in
   aux regex
+
+let map_qregex_body (f : 'a -> 'b) q =
+  let rec aux = function
+    | RPi { sort; body } -> RPi { sort; body = aux body }
+    | RForall { qv; body } -> RForall { qv; body = aux body }
+    | RExists { qv; body } -> RExists { qv; body = aux body }
+    | Regex r -> Regex (f r)
+  in
+  aux q
