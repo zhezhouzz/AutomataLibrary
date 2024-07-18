@@ -8,7 +8,7 @@ open Zzdatatype.Datatype
 open To_id
 
 let constrant_str = "const"
-let inst_str = "inst"
+let inst_str = "machine"
 
 (* type 't ocaml_item = *)
 (*   | MTyDecl of type_declaration *)
@@ -44,43 +44,34 @@ let ocaml_structure_item_to_item structure =
          match value_binding.pvb_attributes with
          | [ x ] -> (
              match x.attr_name.txt with
-             | "regex" ->
-                 MFAImp
-                   {
-                     name;
-                     automata =
-                       To_qregex.of_expr (To_regex.of_expr id_of_expr) expr;
-                   }
-             | "sregex" ->
-                 MSFAImp
-                   {
-                     name;
-                     automata =
-                       To_qregex.of_expr
-                         (To_regex.of_expr To_sevent.of_expr)
-                         expr;
-                   }
+             (* | "regex" -> *)
+             (*     MFAImp *)
+             (*       { *)
+             (*         name; *)
+             (*         automata = *)
+             (*           To_qregex.of_expr (To_regex.of_expr id_of_expr) expr; *)
+             (*       } *)
              | "axiom" -> MAxiom { name; prop = To_prop.of_expr expr }
              | notation when String.equal notation constrant_str ->
-                 MConstant
+                 MRegex
                    {
                      name = name #: None;
-                     const = To_constant.expr_to_constant expr;
+                     automata =
+                       RExpr (RConst (To_constant.expr_to_constant expr));
                    }
              | "typedef" ->
-                 MConstant
+                 MRegex
                    {
                      name = name #: None;
-                     const = To_constant.expr_to_constant expr;
+                     automata =
+                       RExpr (RConst (To_constant.expr_to_constant expr));
                    }
              | notation when String.equal notation inst_str ->
-                 MInst { name; inst = To_inst.inst_of_expr expr }
-             (* | "assert" -> *)
-             (*     MRty *)
-             (*       { is_assumption = false; name; rty = value_binding.pvb_expr } *)
-             (* | "library" -> *)
-             (*     MRty *)
-             (*       { is_assumption = true; name; rty = value_binding.pvb_expr } *)
+                 MRegex
+                   {
+                     name = name #: None;
+                     automata = To_regex.of_expr To_sevent.of_expr expr;
+                   }
              | _ as x ->
                  _failatwith __FILE__ __LINE__
                  @@ spf
@@ -106,47 +97,28 @@ let layout_opt_ty = function None -> "?" | Some t -> Nt.layout t
 
 let layout_opt_item = function
   | MTyDecl _ -> _failatwith __FILE__ __LINE__ "die"
+  | MTyDeclSub { type_name; super_ty } ->
+      spf "type %s = %s" type_name @@ Nt.layout super_ty
   | MMethodPred x ->
       spf "val[@method_predicate] %s: %s" x.x @@ layout_ct_opt x.ty
   | MValDecl x -> spf "val %s: %s" x.x @@ layout_ct_opt x.ty
   | MAxiom { name; prop } ->
       spf "let[@axiom] %s = %s" name (To_prop.layout_prop prop)
-  | MFAImp { name; automata } ->
-      spf "let[@regex] %s = %s" name
-        (To_qregex.layout layout_opt_ty (To_regex.layout (fun x -> x)) automata)
-  | MSFAImp { name; automata } ->
-      spf "let[@sregex] %s = %s" name
-        (To_qregex.layout layout_opt_ty
-           (To_regex.layout To_sevent.layout)
-           automata)
-  | MConstant { name; const } ->
-      spf "let[@%s] %s = %s" constrant_str name.x
-        (To_constant.layout_constant const)
-  | MInst { name; inst } ->
-      spf "let[@%s] %s = %s" inst_str name
-        (To_inst.layout_inst layout_opt_ty inst)
-(* | MRty { is_assumption = false; name; rty } -> *)
-(*     spf "let[@assert] %s = %s" name (Pprintast.string_of_expression rty) *)
-(* | MRty { is_assumption = true; name; rty } -> *)
-(*     spf "let[@library] %s = %s" name (Pprintast.string_of_expression rty) *)
+  | MRegex { name; automata } ->
+      spf "let[@regex] %s = %s" name.x
+        (To_regex.layout layout_opt_ty To_sevent.layout automata)
 
 let layout_item = function
   | MTyDecl _ -> _failatwith __FILE__ __LINE__ "die"
+  | MTyDeclSub { type_name; super_ty } ->
+      spf "type %s = %s" type_name @@ Nt.layout super_ty
   | MMethodPred x -> spf "val[@method_predicate] %s: %s" x.x @@ Nt.layout x.ty
   | MValDecl x -> spf "val %s: %s" x.x @@ Nt.layout x.ty
   | MAxiom { name; prop } ->
       spf "let[@axiom] %s = %s" name (To_prop.layout_prop prop)
-  | MFAImp { name; automata } ->
-      spf "let[@regex] %s = %s" name
-        (To_qregex.layout Nt.layout (To_regex.layout (fun x -> x)) automata)
-  | MSFAImp { name; automata } ->
-      spf "let[@sregex] %s = %s" name
-        (To_qregex.layout Nt.layout (To_regex.layout To_sevent.layout) automata)
-  | MConstant { name; const } ->
-      spf "let[@%s] %s = %s" constrant_str name.x
-        (To_constant.layout_constant const)
-  | MInst { name; inst } ->
-      spf "let[@%s] %s = %s" inst_str name (To_inst.layout_inst Nt.layout inst)
+  | MRegex { name; automata } ->
+      spf "let[@regex] %s = %s" name.x
+        (To_regex.layout Nt.layout To_sevent.layout automata)
 
 let layout_opt_structure l = spf "%s\n" (List.split_by "\n" layout_opt_item l)
 let layout_structure l = spf "%s\n" (List.split_by "\n" layout_item l)

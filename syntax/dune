@@ -21,11 +21,11 @@
    sevent
    ; finiteAutomata
    regex
-   qregex
+   ; qregex
    typectx
    nfa
    minterm
-   inst
+   ; inst
    syntax
  )
  (preprocess

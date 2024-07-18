@@ -2,26 +2,68 @@ open Language
 
 type t = Nt.t
 
-let bi_regex_check (type a b) (f : string -> t -> b)
-    (label_check : t ctx -> a -> b) (ctx : t ctx) (regex : a regex) : b regex =
-  let rec aux ctx regex =
+(* let bi_var_or_c_check (ctx : t ctx) (c : var_or_c) = *)
+(*   match c with *)
+(*   | VCC c -> (VCC c) #: (Normal_constant_typing.infer_constant c) *)
+(*   | VCVar x -> *)
+(*       let ty = *)
+(*         match get_opt ctx x with *)
+(*         | None -> _failatwith __FILE__ __LINE__ (spf "undecleared %s" x) *)
+(*         | Some ty -> ty *)
+(*       in *)
+(*       (VCTVar x #: ty) #: ty *)
+(*   | VCTVar x -> *)
+(*       let ty = *)
+(*         match get_opt ctx x.x with *)
+(*         | None -> _failatwith __FILE__ __LINE__ (spf "undecleared %s" x.x) *)
+(*         | Some ty -> ty *)
+(*       in *)
+(*       let ty = Nt._type_unify __FILE__ __LINE__ ty x.ty in *)
+(*       (VCTVar x.x #: ty) #: ty *)
+
+let bi_regex_check (f : string -> t -> 'b) (label_check : t ctx -> 'a -> 'b)
+    (ctx : t ctx) (regex : (t option, 'a) regex) : (t, (t, 'b) regex) typed =
+  let rec aux ctx regex : (t, (t, 'b) regex) typed =
     match regex with
-    | EpsilonA -> EpsilonA
+    | RExpr r ->
+        let r = bi_expr_check ctx r in
+        (RExpr r.x) #: r.ty
+    | _ ->
+        let aux ctx r = _get_x @@ aux ctx r in
+        let res =
+          match regex with
+          | EpsilonA -> EpsilonA
+          | EmptyA -> EmptyA
+          | Atomic se -> Atomic (label_check ctx se)
+          | MultiAtomic se -> MultiAtomic (List.map (label_check ctx) se)
+          | LorA (t1, t2) -> LorA (aux ctx t1, aux ctx t2)
+          | LandA (t1, t2) -> LandA (aux ctx t1, aux ctx t2)
+          | SeqA (t1, t2) -> SeqA (aux ctx t1, aux ctx t2)
+          | StarA t -> StarA (aux ctx t)
+          | DComplementA { atoms; body } ->
+              DComplementA
+                {
+                  atoms = List.map (label_check ctx) atoms;
+                  body = aux ctx body;
+                }
+          | RepeatN (n, r) ->
+              let _ = Sugar._assert __FILE__ __LINE__ "" (n >= 0) in
+              RepeatN (n, aux ctx r)
+          | Extension r -> Extension (bi_extension_check ctx r)
+          | SyntaxSugar r -> bi_sugar_check ctx r
+          | RExpr _ -> _failatwith __FILE__ __LINE__ "die"
+        in
+        res #: Nt.unit_ty
+  and bi_extension_check ctx = function
+    | ComplementA t -> ComplementA (_get_x @@ aux ctx t)
     | AnyA -> AnyA
-    | EmptyA -> EmptyA
-    | Atomic se -> Atomic (label_check ctx se)
-    | MultiAtomic se -> MultiAtomic (List.map (label_check ctx) se)
-    | LorA (t1, t2) -> LorA (aux ctx t1, aux ctx t2)
-    | SetMinusA (t1, t2) -> SetMinusA (aux ctx t1, aux ctx t2)
-    | LandA (t1, t2) -> LandA (aux ctx t1, aux ctx t2)
-    | SeqA (t1, t2) -> SeqA (aux ctx t1, aux ctx t2)
-    | StarA t -> StarA (aux ctx t)
-    | ComplementA t -> ComplementA (aux ctx t)
-    | DComplementA { atoms; body } ->
-        DComplementA
-          { atoms = List.map (label_check ctx) atoms; body = aux ctx body }
     | Ctx { atoms; body } ->
-        Ctx { atoms = List.map (label_check ctx) atoms; body = aux ctx body }
+        Ctx
+          {
+            atoms = List.map (label_check ctx) atoms;
+            body = _get_x @@ aux ctx body;
+          }
+  and bi_sugar_check ctx = function
     | CtxOp { op_names; body } ->
         let atoms =
           List.map
@@ -33,14 +75,61 @@ let bi_regex_check (type a b) (f : string -> t -> b)
               | Some ty -> f op_name ty)
             op_names
         in
-        Ctx { atoms; body = aux ctx body }
-    | Repeat (x, r) ->
-        let _ = Normal_id_typing.bi_typed_id_check ctx x #: None Nt.Ty_int in
-        Repeat (x, aux ctx r)
-    | RepeatN (n, r) ->
-        let _ = Sugar._assert __FILE__ __LINE__ "" (n >= 0) in
-        RepeatN (n, aux ctx r)
-    (* CtxOp { op_names; body = aux ctx body } *)
+        Extension (Ctx { atoms; body = _get_x @@ aux ctx body })
+    | SetMinusA (t1, t2) ->
+        SyntaxSugar (SetMinusA (_get_x @@ aux ctx t1, _get_x @@ aux ctx t2))
+  and bi_expr_check ctx = function
+    | RRegex r ->
+        let r = aux ctx r in
+        (RRegex r.x) #: r.ty
+    | RConst c -> (RConst c) #: (Normal_constant_typing.infer_constant c)
+    | RVar x ->
+        let x = Normal_id_typing.bi_typed_id_infer ctx x in
+        (RVar x) #: x.ty
+    | RApp { func; arg } ->
+        let f = aux ctx func in
+        let argty, resty =
+          match f.ty with
+          | Nt.Ty_arrow (t1, t2) -> (t1, t2)
+          | _ ->
+              let () =
+                Printf.printf "RApp: %s : %s\n" (layout_raw_regex f.x)
+                  (Nt.layout f.ty)
+              in
+              _failatwith __FILE__ __LINE__ "wrong application"
+        in
+        let arg = bi_expr_check ctx arg in
+        let _ = Nt._type_unify __FILE__ __LINE__ arg.ty argty in
+        (RApp { func = f.x; arg = arg.x }) #: resty
+    | RLet { lhs; rhs; body } ->
+        let rhs = bi_expr_check ctx rhs in
+        let lhs = lhs.x #: rhs.ty in
+        let body = aux (add_to_right ctx lhs) body in
+        (RLet { lhs; rhs = rhs.x; body = body.x }) #: body.ty
+    | Repeat (x, r) -> (Repeat (x, _get_x @@ aux ctx r)) #: Nt.unit_ty
+    | QFRegex { qv; body } -> (
+        match qv.ty with
+        | RForall ty ->
+            let qv = qv.x #: ty in
+            let body = aux (add_to_right ctx qv) body in
+            let retty = Nt.mk_arr qv.ty body.ty in
+            (QFRegex { qv = qv.x #: (RForall qv.ty); body = body.x }) #: retty
+        | RExists ty ->
+            let qv = qv.x #: ty in
+            let body = aux (add_to_right ctx qv) body in
+            let retty = Nt.mk_arr qv.ty body.ty in
+            (QFRegex { qv = qv.x #: (RExists qv.ty); body = body.x }) #: retty
+        | RPi ty ->
+            let qv = qv.x #: ty in
+            let body = aux ctx body in
+            let retty = Nt.mk_arr (ty_set qv.ty) body.ty in
+            (QFRegex { qv = qv.x #: (RPi qv.ty); body = body.x }) #: retty
+        | RForallC c ->
+            let body = aux ctx body in
+            (QFRegex { qv = qv.x #: (RForallC c); body = body.x }) #: body.ty
+        | RExistsC c ->
+            let body = aux ctx body in
+            (QFRegex { qv = qv.x #: (RExistsC c); body = body.x }) #: body.ty)
   in
   aux ctx regex
 

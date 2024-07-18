@@ -40,6 +40,11 @@ let id_of_expr expr =
       Pprintast.expression Format.std_formatter expr;
       failwith "die"
 
+let id_of_expr_opt expr =
+  match expr.pexp_desc with
+  | Pexp_ident id -> Some (longid_to_id id)
+  | _ -> None
+
 let rec typed_id_of_expr expr =
   match expr.pexp_desc with
   | Pexp_constraint (expr, ty) ->

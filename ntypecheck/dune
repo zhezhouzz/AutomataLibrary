@@ -12,8 +12,8 @@
   normal_prop_typing
   normal_sevent_typing
   normal_regex_typing
-  normal_qregex_typing
-  normal_inst_typing
+  ; normal_qregex_typing
+  ; normal_inst_typing
   ; normal_cty_typing
   ; normal_rty_typing
   normal_item_typing

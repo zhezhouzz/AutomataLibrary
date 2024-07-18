@@ -9,6 +9,7 @@ module type CHARAC = sig
   include Map.OrderedType
 
   val layout : t -> string
+  val delimit_cotexnt_char : t list option * t -> t list
 end
 
 module type CHARACTER = sig

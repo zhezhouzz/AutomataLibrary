@@ -21,7 +21,7 @@
    sevent
    regex
    nfa
-   qregex
+   ; qregex
    minterm
    typectx
    constructor_declaration

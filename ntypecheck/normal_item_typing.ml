@@ -1,8 +1,7 @@
 open Language
 open Normal_prop_typing
-open Normal_qregex_typing
-open Normal_constant_typing
-open Normal_inst_typing
+open Normal_regex_typing
+(* open Normal_inst_typing *)
 
 type t = Nt.t
 
@@ -22,11 +21,13 @@ let item_mk_ctx (e : t option item) =
       xs
   | MValDecl x -> [ __force_typed __FILE__ __LINE__ x ]
   | MMethodPred mp -> [ __force_typed __FILE__ __LINE__ mp ]
-  | MAxiom _ | MFAImp _ | MSFAImp _ | MConstant _ | MInst _ -> []
+  | MAxiom _ | MRegex _ | MTyDeclSub _ -> []
 (* | _ -> _failatwith __FILE__ __LINE__ "not predefine" *)
 
 let item_check ctx (e : t option item) : t ctx * t item =
   match e with
+  | MTyDeclSub { type_name; super_ty } ->
+      (ctx, MTyDeclSub { type_name; super_ty })
   | MTyDecl { type_name; type_params; type_decls } ->
       let res = MTyDecl { type_name; type_params; type_decls } in
       let retty =
@@ -47,17 +48,11 @@ let item_check ctx (e : t option item) : t ctx * t item =
       (add_to_right ctx x, res)
   | MAxiom { name; prop } ->
       (ctx, MAxiom { name; prop = bi_typed_prop_check ctx prop })
-  | MFAImp { name; automata } ->
-      (ctx, MFAImp { name; automata = bi_str_qregex_check ctx automata })
-  | MSFAImp { name; automata } ->
-      let automata = bi_symbolic_qregex_check ctx automata in
-      (add_to_right ctx name #: (get_type automata), MSFAImp { name; automata })
-  | MConstant { name; const } ->
-      let t = infer_constant const in
-      let name = name.x #: t in
-      (add_to_right ctx name, MConstant { name; const })
-  | MInst { name; inst } ->
-      (ctx, MInst { name; inst = (bi_typed_inst_infer ctx inst).x })
+  | MRegex { name; automata } ->
+      let automata = bi_symbolic_regex_check ctx automata in
+      let name = name.x #: automata.ty in
+      ( add_to_right ctx name.x #: automata.ty,
+        MRegex { name; automata = automata.x } )
 (* | _ -> _failatwith __FILE__ __LINE__ "die" *)
 
 let struct_mk_ctx ctx l =

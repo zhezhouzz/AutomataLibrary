@@ -13,7 +13,9 @@ open To_prop
 let tpEvent str = spf "⟨%s⟩" str
 
 let pprint = function
-  | GuardEvent phi -> tpEvent @@ layout_prop phi
+  | GuardEvent { vs; phi } ->
+      tpEvent
+      @@ spf "%s | %s" (List.split_by " " (fun x -> x.x) vs) (layout_prop phi)
   | EffEvent { op; vs; phi } ->
       tpEvent
       @@ spf "%s %s | %s" op
@@ -25,7 +27,11 @@ let layout = pprint
 let tpEventRaw str = spf "<%s>" str
 
 let pprintRaw = function
-  | GuardEvent phi -> tpEventRaw @@ layout_propRaw phi
+  | GuardEvent { vs; phi } ->
+      tpEventRaw
+      @@ spf "%s | %s"
+           (List.split_by " " (fun x -> x.x) vs)
+           (layout_propRaw phi)
   | EffEvent { op; vs; phi } ->
       tpEventRaw
       @@ spf "%s %s | %s" op
@@ -104,7 +110,7 @@ let sevent_of_expr_aux expr =
       | "any" ->
           (* symbolic global event *)
           let phi = prop_of_expr e in
-          GuardEvent phi
+          GuardEvent { vs = []; phi }
       | _ ->
           let vs, phi = desugar_sevent e in
           EffEvent { op; vs; phi })

@@ -523,7 +523,17 @@ module MakeAutomata (C : CHARACTER) = struct
   let empty = Empty
   let oneof cs = match CharSet.cardinal cs with 0 -> Empty | _ -> Char cs
 
-  let regex_to_raw (regex : C.t regex) : CharSet.t raw_regex option =
+  let mk_repeat (n, r) =
+    let rec aux (n, r) =
+      match n with
+      | 0 -> Eps
+      | 1 -> r
+      | _ when n > 1 -> seq r (aux (n - 1, r))
+      | _ -> _failatwith __FILE__ __LINE__ "invalid repeat"
+    in
+    aux (n, r)
+
+  let regex_to_raw (regex : ('t, C.t) regex) : CharSet.t raw_regex option =
     (* let regex = Regex.to_nnf regex in *)
     (* let () = *)
     (*   Printf.printf "regex_to_raw: %s\n" *)
@@ -532,12 +542,13 @@ module MakeAutomata (C : CHARACTER) = struct
     (*          (fun c -> Sexplib.Std.sexp_of_string @@ C.layout c) *)
     (*          regex) *)
     (* in *)
-    let rec aux (regex : C.t regex) : CharSet.t raw_regex option =
+    let rec aux (regex : ('t, C.t) regex) : CharSet.t raw_regex option =
       match regex with
-      | SetMinusA _ | ComplementA _ | AnyA | CtxOp _ | Ctx _ | Repeat _
-      | RepeatN _ ->
-          failwith "die"
+      | Extension _ | SyntaxSugar _ | RExpr _ -> failwith "die"
       | LandA _ | DComplementA _ -> None
+      | RepeatN (n, r) ->
+          let* r = aux r in
+          Some (mk_repeat (n, r))
       | MultiAtomic l -> Some (Char (CharSet.of_list l))
       | EmptyA -> Some Empty
       | EpsilonA -> Some Eps
@@ -556,7 +567,7 @@ module MakeAutomata (C : CHARACTER) = struct
     in
     aux regex
 
-  let compile (r : C.t regex) : nfa =
+  let compile (r : ('t, C.t) regex) : nfa =
     match regex_to_raw r with
     | Some r -> compile_from_raw_regex r
     | None -> _failatwith __FILE__ __LINE__ "die"
@@ -780,9 +791,9 @@ module MakeAutomata (C : CHARACTER) = struct
   let intersect_nfa (nfa1 : nfa) (nfa2 : nfa) : nfa =
     inject @@ intersect_dfa (determinize nfa1) (determinize nfa2)
 
-  let compile2dfa (r : C.t regex) : dfa =
+  let compile2dfa (r : ('t, C.t) regex) : dfa =
     let r = Regex.desugar r in
-    let r = Regex.delimit_context r in
+    let r = Regex.delimit_context C.delimit_cotexnt_char r in
     let rec aux r =
       let res =
         match regex_to_raw r with

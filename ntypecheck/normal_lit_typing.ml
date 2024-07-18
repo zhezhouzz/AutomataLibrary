@@ -43,9 +43,7 @@ and bi_typed_lit_infer (ctx : t ctx) (lit : (t option, t option lit) typed) :
       let id =
         match id.ty with
         | None -> bi_typed_id_infer ctx id
-        | Some ty ->
-            let _ = failwith "endsd" in
-            id.x #: ty
+        | Some ty -> id.x #: ty
       in
       (AVar id) #: id.ty
   | AC c -> (

@@ -15,9 +15,9 @@
    ; to_strLabel
    to_notation
    to_regex
-   to_qregex
+   ; to_qregex
    to_type_dec
-   to_inst
+   ; to_inst
    to_item
    front
  )

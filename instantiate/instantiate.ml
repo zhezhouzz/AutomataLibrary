@@ -1,36 +1,180 @@
 open Language
 open Zzdatatype.Datatype
 
-type res = (Nt.t, Nt.t sevent regex) machine
+type rexpr = (Nt.t, Nt.t sevent) regex_expr
 
-let interp (ctx : Nt.t inst ctx) (inst : Nt.t inst) : res =
-  let binding = Hashtbl.create 10 in
-  let rec aux = function
-    | IVar name -> (
-        match get_opt ctx name.x with
-        | Some res -> res
-        | None -> _failatwith __FILE__ __LINE__ (spf "undefined %s" name.x))
-    | (IConst _ | IQregex _) as r -> r
-    | IApp (r1, r2) -> (
-        let r1, r2 = map2 aux (r1, r2) in
-        match (r1, r2) with
-        | IQregex (RPi { sort; body }), IConst c ->
-            Hashtbl.add binding sort.x c;
-            IQregex body
-        | IQregex (RForall { qv; body }), IConst (I m) ->
-            IQregex (subst_qregex_const body qv.x m)
-        | _, _ -> _failatwith __FILE__ __LINE__ "die")
+let rec eta_reduction_regex_expr (ctx : rexpr ctx) (inst : rexpr) : rexpr =
+  let rec aux ctx = function
+    | RRegex r -> RRegex (eta_reduction_regex ctx r)
+    | RVar name ->
+        (* in eta reduction, we allow unbound variables. *)
+        let res =
+          match get_opt ctx name.x with Some res -> res | None -> RVar name
+        in
+        res
+    | RConst _ as r -> r
+    | RLet { lhs; rhs; body } ->
+        let rhs = aux ctx rhs in
+        let ctx = add_to_right ctx lhs.x #: rhs in
+        let body = eta_reduction_regex ctx body in
+        let body = instantiate_function ctx body in
+        (* let () = *)
+        (*   Printf.printf "instantiate: %s\n" @@ layout_symbolic_regex body *)
+        (* in *)
+        RRegex body
+    | RApp { func; arg } ->
+        let func = eta_reduction_regex ctx func in
+        (* let () = Printf.printf "func: %s\n" @@ layout_symbolic_regex func in *)
+        let arg = aux ctx arg in
+        (* let () = *)
+        (*   Printf.printf "arg: %s\n" @@ layout_symbolic_regex (RExpr arg) *)
+        (* in *)
+        let res = do_apply ctx func arg in
+        (* let () = Printf.printf "app: %s\n" @@ layout_symbolic_regex res in *)
+        RRegex (eta_reduction_regex ctx res)
+    | QFRegex { qv; body } ->
+        QFRegex { qv; body = eta_reduction_regex ctx body }
+    | Repeat (x, r) -> (
+        let r = eta_reduction_regex ctx r in
+        match get_opt ctx x with
+        | None -> Repeat (x, r)
+        | Some (RConst (I m)) -> RRegex (RepeatN (m, r))
+        | Some (RVar y) -> Repeat (y.x, r)
+        | _ -> _failatwith __FILE__ __LINE__ (spf "wrong defined %s" x))
   in
-  let inst = aux inst in
-  let q =
-    match inst with IQregex q -> q | _ -> _failatwith __FILE__ __LINE__ "die"
-  in
-  to_machine binding q
+  aux ctx inst
+(* let inst = aux ctx inst in *)
+(* let q = *)
+(*   match inst with IQregex q -> q | _ -> _failatwith __FILE__ __LINE__ "die" *)
+(* in *)
+(* to_machine ctx q *)
 
-let layout_quantifier binding qv =
-  match StrMap.find_opt binding (Nt.layout qv.ty) with
-  | Some c -> spf "(%s ∈ %s)." qv.x (layout_constant c)
-  | None -> spf "%s:%s)." qv.x (Nt.layout qv.ty)
+and instantiate_function ctx = function
+  | RExpr (RRegex r) -> instantiate_function ctx r
+  | RExpr (QFRegex { qv; body }) ->
+      let qv =
+        match qv.ty with
+        | RForall ty -> (
+            match get_opt ctx (Nt.layout ty) with
+            | Some m ->
+                let c =
+                  match m with
+                  | RConst c -> c
+                  | _ -> _failatwith __FILE__ __LINE__ "die"
+                in
+                qv.x #: (RForallC c)
+            | None -> qv)
+        | RExists ty -> (
+            match get_opt ctx (Nt.layout ty) with
+            | Some m ->
+                let c =
+                  match m with
+                  | RConst c -> c
+                  | _ -> _failatwith __FILE__ __LINE__ "die"
+                in
+                qv.x #: (RExistsC c)
+            | None -> qv)
+        | _ -> qv
+      in
+      RExpr (QFRegex { qv; body = instantiate_function ctx body })
+  | _ as r -> r
+
+and do_apply ctx (func : (Nt.t, Nt.t sevent) regex) arg =
+  match func with
+  | RExpr (RRegex r) -> do_apply ctx r arg
+  | RExpr (RVar name) -> (
+      match get_opt ctx name.x with
+      | None -> _failatwith __FILE__ __LINE__ "die"
+      | Some func -> do_apply ctx (RExpr func) arg)
+  | RExpr (QFRegex { qv; body }) -> (
+      match qv.ty with
+      | RForall _ ->
+          (* let () = Printf.printf "subst\n" in *)
+          let res = subst_regex body qv.x arg in
+          (* let () = Printf.printf "res: %s\n" @@ layout_symbolic_regex res in *)
+          res
+      | RPi _ -> subst_regex body qv.x arg
+      | _ ->
+          let body = do_apply ctx body arg in
+          RExpr (QFRegex { qv; body }))
+  | _ ->
+      let () = Printf.printf "bad func: %s\n" @@ layout_symbolic_regex func in
+      _failatwith __FILE__ __LINE__ "die"
+
+and eta_reduction_regex_extension (ctx : rexpr ctx)
+    (regex : (Nt.t, Nt.t sevent) regex_extension) :
+    (Nt.t, Nt.t sevent) regex_extension =
+  match regex with
+  | AnyA -> AnyA
+  | ComplementA r -> ComplementA (eta_reduction_regex ctx r)
+  | Ctx { atoms; body } -> Ctx { atoms; body = eta_reduction_regex ctx body }
+
+and eta_reduction_regex_sugar (ctx : rexpr ctx)
+    (regex : (Nt.t, Nt.t sevent) regex_sugar) : (Nt.t, Nt.t sevent) regex_sugar
+    =
+  match regex with
+  | CtxOp { op_names; body } ->
+      CtxOp { op_names; body = eta_reduction_regex ctx body }
+  | SetMinusA (r1, r2) ->
+      SetMinusA (eta_reduction_regex ctx r1, eta_reduction_regex ctx r2)
+
+and eta_reduction_regex (ctx : rexpr ctx) (regex : (Nt.t, Nt.t sevent) regex) :
+    (Nt.t, Nt.t sevent) regex =
+  let rec aux ctx regex =
+    match regex with
+    | EmptyA | EpsilonA | Atomic _ | MultiAtomic _ -> regex
+    | RepeatN (n, r) ->
+        let r = aux ctx r in
+        RepeatN (n, r)
+    | DComplementA { atoms; body } ->
+        let body = aux ctx body in
+        DComplementA { atoms; body }
+    | LorA (r1, r2) -> LorA (aux ctx r1, aux ctx r2)
+    | LandA (r1, r2) -> LandA (aux ctx r1, aux ctx r2)
+    | SeqA (r1, r2) -> SeqA (aux ctx r1, aux ctx r2)
+    | StarA r -> StarA (aux ctx r)
+    | Extension r -> Extension (eta_reduction_regex_extension ctx r)
+    | SyntaxSugar r -> SyntaxSugar (eta_reduction_regex_sugar ctx r)
+    | RExpr r -> RExpr (eta_reduction_regex_expr ctx r)
+  in
+  aux ctx regex
+
+let regex_expr_to_machine_opt (r : rexpr) :
+    (Nt.t, Nt.t sevent) regex machine option =
+  let rec aux binding r =
+    (* let () = Printf.printf "To: %s\n" (layout_raw_regex (RExpr r)) in *)
+    (* let () = Printf.printf "to: %s\n" @@ layout_symbolic_regex (RExpr r) in *)
+    match r with
+    | QFRegex { qv; body } -> (
+        match qv.ty with
+        | RForallC c ->
+            aux (binding @ [ (qv.x, Normalty.Connective.Fa, c) ]) (RRegex body)
+        | RExistsC c ->
+            aux (binding @ [ (qv.x, Normalty.Connective.Ex, c) ]) (RRegex body)
+        | _ -> None)
+    | RRegex (RExpr r) -> aux binding r
+    | RRegex r -> Some { binding; reg = r }
+    | _ -> None
+  in
+  aux [] r
+
+(* let eta_reduction_to_constant (binding : Nt.t inst ctx) = function *)
+(*   | RVar name -> ( *)
+(*       match get_opt binding name.x with *)
+(*       | Some (RConst c) -> c *)
+(*       | _ -> _failatwith __FILE__ __LINE__ "die") *)
+(*   | RConst c -> c *)
+(*   | _ -> _failatwith __FILE__ __LINE__ "die" *)
+
+(* let inst_to_c_opt = function *)
+(*   | RConst c -> Some (VCC c) *)
+(*   | RVar x -> Some (VCTVar x) *)
+(*   | _ -> None *)
+
+(* let layout_quantifier binding qv = *)
+(*   match StrMap.find_opt binding (Nt.layout qv.ty) with *)
+(*   | Some c -> spf "(%s ∈ %s)." qv.x (layout_constant c) *)
+(*   | None -> spf "%s:%s)." qv.x (Nt.layout qv.ty) *)
 
 let layout_machine_ f { binding; reg } =
   let head =
@@ -46,34 +190,23 @@ let layout_machine_ f { binding; reg } =
 let layout_symbolic_machine m = layout_machine_ layout_symbolic_regex m
 let layout_sfa_machine m = layout_machine_ SFA.layout_dfa m
 
-let interp_item (ctx : Nt.t inst ctx) (e : Nt.t item) :
-    Nt.t inst ctx * (string * res) option =
+let eta_reduction_item (ctx : rexpr ctx) (e : Nt.t item) : rexpr ctx =
   match e with
-  | MTyDecl _ | MValDecl _ | MMethodPred _ | MAxiom _ | MFAImp _ -> (ctx, None)
-  | MSFAImp { name; automata } ->
-      (add_to_right ctx name #: (IQregex automata), None)
-  | MConstant { name; const } ->
-      (add_to_right ctx name.x #: (IConst const), None)
-  | MInst { name; inst } -> (ctx, Some (name, interp ctx inst))
+  | MTyDecl _ | MValDecl _ | MMethodPred _ | MAxiom _ | MTyDeclSub _ -> ctx
+  | MRegex { name; automata } -> (
+      match automata with
+      | RExpr r ->
+          let res = eta_reduction_regex_expr ctx r in
+          add_to_right ctx name.x #: res
+      | _ -> add_to_right ctx name.x #: (RRegex automata))
 
-let interp_items (ctx : Nt.t inst ctx) (es : Nt.t item list) :
-    Nt.t inst ctx * res StrMap.t =
-  List.fold_left
-    (fun (ctx, res) e ->
-      (* let () = Printf.printf "item: %s\n" @@ layout_item e in *)
-      (* let () = *)
-      (*   Printf.printf "ctx.keys: %s\n" *)
-      (*     (List.split_by_comma (fun x -> x) @@ List.map _get_x @@ to_list ctx) *)
-      (* in *)
-      let ctx, r = interp_item ctx e in
-      match r with
-      | None -> (ctx, res)
-      | Some (name, inst) -> (ctx, StrMap.add name inst res))
-    (ctx, StrMap.empty) es
+let eta_reduction_items (ctx : rexpr ctx) (es : Nt.t item list) : rexpr ctx =
+  List.fold_left (fun ctx e -> eta_reduction_item ctx e) ctx es
 
-let machines_to_fa_machines machines =
+let machines_to_fa_machines
+    (machines : (Nt.t, Nt.t sevent) regex machine StrMap.t) =
   StrMap.map
-    (fun m ->
+    (fun (m : (Nt.t, Nt.t sevent) regex machine) ->
       let bmap, { binding; reg } =
         Desymbolic.desymbolic_machine (fun _ -> true) m
       in

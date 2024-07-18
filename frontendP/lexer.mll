@@ -48,6 +48,10 @@ rule next_token = parse
   | "machine" {MACHINEDEF}
   | "lit" {LITDECL}
   | "=" {ASSIGN}
+  | "let" {LET}
+  | "in" {IN}
+  | "function" {FUNCTION}
+  | "all" {ALL}
   (* arithmetic operators *)
   | "-" {MINUS}
   | "+" {PLUS}

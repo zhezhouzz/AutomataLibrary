@@ -4,17 +4,17 @@ val "!=" : 'a -> 'a -> bool;
 type server <: int;
 type key <: int;
 
-event write : <dest : server ; k : key; value: int>;
-event read : <dest : server; k : key >;
+event write : <k : key; value: int>;
+event read : <k : key >;
 
 machine w1 = forall (s: server), forall (y: key),
    <[function
-     | write -> dest == s && k == y
-     | read -> dest == s]>;
+     | write -> k == y
+     | all -> dest == s]>;
 
 machine prop = forall (n: int), forall (serv : server), forall (y:key),
  ctx [| read write |]
-   (((w1 serv y)*)~(rep n .)~(<[ write s x value |s == serv && x == y ]>*));
+   (((w1 serv) y) ~ (rep n .)~(<[ write x value | dest == serv && x == y ]>*));
 
 const serverType = [|1; 2|];
 const valueType = [|1; 2; 3|];

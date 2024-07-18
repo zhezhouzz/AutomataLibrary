@@ -6,8 +6,10 @@ include Prop
 include Sevent
 include Typectx
 include Regex
-include Qregex
+
+(* include Qregex *)
 include Nfa
-include Inst
+
+(* include Inst *)
 include Minterm
 include Ast

@@ -50,15 +50,17 @@ end
 module MakeAA (C : CHARAC) = struct
   include MakeA (C)
 
-  let index_regex (regex : C.t regex) : C.char_idx =
+  let index_regex (regex : ('t, C.t) regex) : C.char_idx =
     let m = C.init_char_map () in
     let () = iter_label_in_regex (C.add_char_to_map m) regex in
     m
 
-  let to_index_regex (m : C.char_idx) (regex : C.t regex) : Int64.t regex =
+  let to_index_regex (m : C.char_idx) (regex : ('t, C.t) regex) :
+      ('t, Int64.t) regex =
     map_label_in_regex (C.c2id m) regex
 
-  let from_index_regex (m : C.char_idx) (regex : Int64.t regex) : C.t regex =
+  let from_index_regex (m : C.char_idx) (regex : ('t, Int64.t) regex) :
+      ('t, C.t) regex =
     map_label_in_regex (C.id2c m) regex
 
   open Core
@@ -79,6 +81,7 @@ module SeventLabel = struct
 
   let compare = compare_se
   let layout = pprintRaw
+  let delimit_cotexnt_char = delimit_cotexnt_se
 end
 
 module SFA = struct

@@ -41,6 +41,9 @@ let of_ocamltypedec { ptype_name; ptype_params; ptype_kind; ptype_manifest; _ }
           type_params;
           type_decls = List.map constructor_declaration_of_ocaml cds;
         }
+  | _, Ptype_abstract, Some ct ->
+      MTyDeclSub
+        { type_name = ptype_name.txt; super_ty = Type.core_type_to_t ct }
   | _ -> failwith "unimp complex type decl"
 
 let to_ocamltypedec = function
@@ -57,6 +60,17 @@ let to_ocamltypedec = function
         ptype_kind =
           Ptype_variant (List.map constructor_declaration_to_ocaml type_decls);
         ptype_manifest = None;
+        ptype_attributes = [];
+        ptype_loc = Location.none;
+        ptype_private = Asttypes.Public;
+      }
+  | MTyDeclSub { type_name; super_ty } ->
+      {
+        ptype_name = Location.mknoloc type_name;
+        ptype_params = [];
+        ptype_cstrs = [];
+        ptype_kind = Ptype_abstract;
+        ptype_manifest = Some (Type.t_to_core_type super_ty);
         ptype_attributes = [];
         ptype_loc = Location.none;
         ptype_private = Asttypes.Public;

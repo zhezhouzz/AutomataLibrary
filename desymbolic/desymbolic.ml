@@ -52,7 +52,9 @@ let models_prop m prop =
 let partial_evaluate_sevent global_tab se =
   (* let open NRegex in *)
   match se with
-  | GuardEvent phi -> if models_prop global_tab phi then AnyA else EmptyA
+  | GuardEvent _ ->
+      _failatwith __FILE__ __LINE__ "die"
+      (* if models_prop global_tab phi then AnyA else EmptyA *)
   | EffEvent { op; vs; phi } ->
       let phi = partial_evaluate_prop global_tab phi in
       Atomic (EffEvent { op; vs; phi })
@@ -63,8 +65,10 @@ let partial_evaluate_regex global_tab regex =
   in
   let rec aux regex =
     match regex with
-    | Repeat _ | RepeatN _ -> _failatwith __FILE__ __LINE__ "die"
-    | EmptyA | AnyA | EpsilonA -> regex
+    | Extension _ | SyntaxSugar _ | RExpr _ ->
+        _failatwith __FILE__ __LINE__ "die"
+    | RepeatN (n, r) -> RepeatN (n, aux r)
+    | EmptyA | EpsilonA -> regex
     | Atomic se -> partial_evaluate_sevent global_tab se
     | MultiAtomic ses ->
         MultiAtomic
@@ -75,14 +79,10 @@ let partial_evaluate_regex global_tab regex =
                | _ -> _failatwith __FILE__ __LINE__ "die")
              ses)
     | LorA (t1, t2) -> LorA (aux t1, aux t2)
-    | SetMinusA (t1, t2) -> SetMinusA (aux t1, aux t2)
     | LandA (t1, t2) -> LandA (aux t1, aux t2)
     | SeqA (t1, t2) -> SeqA (aux t1, aux t2)
     | StarA t -> StarA (aux t)
-    | ComplementA t -> ComplementA (aux t)
     | DComplementA { atoms; body } -> DComplementA { atoms; body = aux body }
-    | Ctx { atoms; body } -> Ctx { atoms; body = aux body }
-    | CtxOp { op_names; body } -> CtxOp { op_names; body = aux body }
   in
   let res = aux regex in
   res
@@ -109,32 +109,24 @@ let desymbolic_local dts regex =
   in
   let rec aux regex =
     match regex with
-    | Repeat _ | RepeatN _ -> _failatwith __FILE__ __LINE__ "die"
+    | Extension _ | SyntaxSugar _ | RExpr _ ->
+        _failatwith __FILE__ __LINE__ "die"
+    | RepeatN (n, r) -> RepeatN (n, aux r)
     | EmptyA -> EmptyA
-    | AnyA -> AnyA
     | EpsilonA -> EpsilonA
     | Atomic se -> labels_to_multiatomic @@ desymbolic_sevent dts se
     | MultiAtomic se ->
         labels_to_multiatomic @@ List.concat_map (desymbolic_sevent dts) se
     | LorA (t1, t2) -> LorA (aux t1, aux t2)
-    | SetMinusA (t1, t2) -> SetMinusA (aux t1, aux t2)
     | LandA (t1, t2) -> LandA (aux t1, aux t2)
     | SeqA (t1, t2) -> SeqA (aux t1, aux t2)
     | StarA t -> StarA (aux t)
-    | ComplementA t -> ComplementA (aux t)
     | DComplementA { atoms; body } ->
         let atoms =
           List.slow_rm_dup (fun a b -> 0 == Stdlib.compare a b)
           @@ List.concat_map (desymbolic_sevent dts) atoms
         in
         DComplementA { atoms; body = aux body }
-    | Ctx { atoms; body } ->
-        let atoms =
-          List.slow_rm_dup (fun a b -> 0 == Stdlib.compare a b)
-          @@ List.concat_map (desymbolic_sevent dts) atoms
-        in
-        Ctx { atoms; body = aux body }
-    | CtxOp _ -> _failatwith __FILE__ __LINE__ "die"
   in
   let res = aux regex in
   (* let () = *)
@@ -202,7 +194,7 @@ let desymbolic_machine checker { binding; reg } =
   let () =
     Pp.printf "\n@{<bold>After Desugar:@}\n%s\n" (layout_symbolic_regex reg)
   in
-  let reg = delimit_context reg in
+  let reg = delimit_context delimit_cotexnt_se reg in
   let () =
     Pp.printf "\n@{<bold>After Delimit Context@}:\n%s\n"
       (layout_symbolic_regex reg)

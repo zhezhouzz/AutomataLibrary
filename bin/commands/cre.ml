@@ -18,29 +18,17 @@ let read_source_file source_file () =
   | "p" -> Frontp.parse source_file
   | _ -> failwith @@ spf "wrong file extension *.%s" postfix
 
-let get_fa_by_name code n =
-  let tmp =
-    List.filter_map
-      (function
-        | MFAImp { name; automata } ->
-            if String.equal name n then Some (get_regex_from_qregex automata)
-            else None
-        | _ -> None)
-      code
-  in
-  List.nth tmp 0
-
-let get_sfa_by_name code n =
-  let tmp =
-    List.filter_map
-      (function
-        | MSFAImp { name; automata } ->
-            if String.equal name n then Some (get_regex_from_qregex automata)
-            else None
-        | _ -> None)
-      code
-  in
-  List.nth tmp 0
+(* let get_sfa_by_name code n = *)
+(*   let tmp = *)
+(*     List.filter_map *)
+(*       (function *)
+(*         | MRegex { name; automata } -> *)
+(*             if String.equal name.x n then Some (get_regex_from_qregex automata) *)
+(*             else None *)
+(*         | _ -> None) *)
+(*       code *)
+(*   in *)
+(*   List.nth tmp 0 *)
 
 (* let test_fa2 code = *)
 (*   let open StrAutomata in *)
@@ -78,45 +66,52 @@ let get_sfa_by_name code n =
 (*   in *)
 (*   () *)
 
-let test_fa3 code =
-  let open StrAutomata in
-  let a1 = get_fa_by_name code "a1" in
-  let a1 = delimit_context @@ desugar a1 in
-  let m = index_regex a1 in
-  let a1' = to_index_regex m a1 in
-  let module IdA = IdAutomata in
-  let dfa1 = IdA.compile2dfa a1' in
-  let dfa1_dot = IdA.digraph_of_nfa (IdA.inject dfa1) in
-  let () = Format.printf "%a@." format_digraph dfa1_dot in
-  ()
+(* let test_fa3 code = *)
+(*   let open StrAutomata in *)
+(*   let a1 = get_fa_by_name code "a1" in *)
+(*   let a1 = delimit_context @@ desugar a1 in *)
+(*   let m = index_regex a1 in *)
+(*   let a1' = to_index_regex m a1 in *)
+(*   let module IdA = IdAutomata in *)
+(*   let dfa1 = IdA.compile2dfa a1' in *)
+(*   let dfa1_dot = IdA.digraph_of_nfa (IdA.inject dfa1) in *)
+(*   let () = Format.printf "%a@." format_digraph dfa1_dot in *)
+(*   () *)
 
 let read_automata source_file () =
   let code = read_source_file source_file () in
   (* let () = Printf.printf "%s\n" @@ layout_opt_structure code in *)
   let _, code = struct_check emp code in
   (* let () = Printf.printf "%s\n" @@ layout_structure code in *)
-  let () = test_fa3 code in
+  (* let () = test_fa3 code in *)
   ()
 
-let test_sfa1 code =
-  let srl = get_sfa_by_name code "poly_spec" in
-  let srl = delimit_context @@ desugar srl in
-  let bmap, rl = Desymbolic.desymbolic (fun _ -> true) srl in
-  let () = Printf.printf "%s\n" @@ layout_desym_regex rl in
-  let module DFA = DesymFA in
-  let fa = DFA.compile2dfa rl in
-  (* let () = DFA.save_as_digraph fa "tmp.dot" in *)
-  let sfa = SFA.from_desym_dfa bmap fa in
-  let () = Printf.printf "%s\n" @@ SFA.layout_dfa sfa in
-  let () = SFA.save_as_digraph sfa "tmp.dot" in
-  ()
+(* let test_sfa1 code = *)
+(*   let srl = get_sfa_by_name code "poly_spec" in *)
+(*   let srl = delimit_context @@ desugar srl in *)
+(*   let bmap, rl = Desymbolic.desymbolic (fun _ -> true) srl in *)
+(*   let () = Printf.printf "%s\n" @@ layout_desym_regex rl in *)
+(*   let module DFA = DesymFA in *)
+(*   let fa = DFA.compile2dfa rl in *)
+(*   (\* let () = DFA.save_as_digraph fa "tmp.dot" in *\) *)
+(*   let sfa = SFA.from_desym_dfa bmap fa in *)
+(*   let () = Printf.printf "%s\n" @@ SFA.layout_dfa sfa in *)
+(*   let () = SFA.save_as_digraph sfa "tmp.dot" in *)
+(*   () *)
 
 let read_sfa source_file () =
   let code = read_source_file source_file () in
   let () = Printf.printf "%s\n" @@ layout_opt_structure code in
   let _, code = struct_check emp code in
   let () = Printf.printf "%s\n" @@ layout_structure code in
-  let _, machines = Instantiate.interp_items emp code in
+  let machines = Instantiate.eta_reduction_items emp code in
+  let machines =
+    StrMap.of_seq @@ List.to_seq
+    @@ List.filter_map (fun x ->
+           let* m = Instantiate.regex_expr_to_machine_opt x.ty in
+           Some (x.x, m))
+    @@ to_list machines
+  in
   let () =
     StrMap.iter
       (fun name m ->

@@ -5,7 +5,7 @@
 
 (* tokens *)
 (* keywords *)
-%token EOF TYPEDEF CONSTDEF SPECDEF MACHINEDEF ASSIGN FUNCDECL EVENTDECL LITDECL
+%token EOF TYPEDEF CONSTDEF SPECDEF MACHINEDEF ASSIGN FUNCDECL EVENTDECL LITDECL LET IN FUNCTION ALL
 (* arithmetic operators *)
 %token PLUS MINUS STAR DIV LT GT LE GE NEQ EQ
 (* logic operators *)
@@ -36,6 +36,13 @@ base_nt:
   | nt=nt id=IDENT {Nt.Ty_constructor (id, [nt]) }
   | id=IDENT {Nt.Ty_constructor (id, [])}
   | LPAR nt=nt RPAR {nt}
+  | LT ts=type_feilds GT {Nt.Ty_record ts}
+  | LT ts=type_feilds SEMICOLON GT {Nt.Ty_record ts}
+;
+
+type_feilds:
+  | id=IDENT COLON nt=base_nt {[(id, nt)]}
+  | id=IDENT COLON nt=base_nt SEMICOLON ts=type_feilds {(id, nt) :: ts}
 ;
 
 product_nt:
@@ -127,55 +134,85 @@ sevent:
 | LEPAR op=IDENT vs=typed_vars BAR p=prop REPAR {{y = normalize_name (EffEvent {op; vs; phi = p.y}); loc = $startpos}}
 ;
 
-regex:
-  | ANY {{y = AnyA; loc = $startpos}}
+regex_case:
+| op=IDENT ARROW p=prop {{y = normalize_name (EffEvent {op; vs = []; phi = p.y}); loc = $startpos}}
+| ALL ARROW p=prop {{y = normalize_name (EffEvent {op = "all"; vs = []; phi = p.y}); loc = $startpos}}
+;
+
+regex_case_list:
+| c=regex_case BAR cs=regex_case_list {c :: cs}
+| c=regex_case {[c]}
+;
+
+regex_match:
+| FUNCTION BAR cs=regex_case_list {{ y = mk_sevents_from_ses (List.map (fun x ->x.y) cs); loc = $startpos}}
+| FUNCTION cs=regex_case_list {{ y = mk_sevents_from_ses (List.map (fun x ->x.y) cs); loc = $startpos}}
+;
+
+regex_base:
   | EMP {{y = EmptyA; loc = $startpos}}
   | EPSILON {{y = EpsilonA; loc = $startpos}}
-  | p1=regex CONCAT p2=regex {{y = SeqA(p1.y, p2.y); loc = $startpos}}
-  | p1=regex OR p2=regex {{y = LorA(p1.y, p2.y); loc = $startpos}}
-  | p1=regex AND p2=regex {{y = LandA(p1.y, p2.y); loc = $startpos}}
-  | p1=regex MINUS p2=regex {{y = SetMinusA(p1.y, p2.y); loc = $startpos}}
-  | NOT p=regex {{y = ComplementA p.y; loc = $startpos}}
-  | CTX LSEQPRAN op_names=vars RSEQPRAN p=regex {{y = CtxOp {op_names; body = p.y}; loc = $startpos}}
-  | REPEAT id=IDENT p=regex {{y = Repeat (id, p.y); loc = $startpos}}
-  | REPEAT n=NUMBER p=regex {{y = RepeatN (n, p.y); loc = $startpos}}
-  | r=regex STAR {{y = StarA r.y; loc = $startpos}}
+  | p1=regex_base CONCAT p2=regex_base {{y = SeqA(p1.y, p2.y); loc = $startpos}}
+  | p1=regex_base OR p2=regex_base {{y = LorA(p1.y, p2.y); loc = $startpos}}
+  | p1=regex_base AND p2=regex_base {{y = LandA(p1.y, p2.y); loc = $startpos}}
+  | REPEAT n=NUMBER p=regex_base {{y = RepeatN (n, p.y); loc = $startpos}}
+  | r=regex_base STAR {{y = StarA r.y; loc = $startpos}}
   | s=sevent {{y =Atomic s.y; loc = $startpos}}
+  | LEPAR r=regex_match REPAR {{y = r.y; loc = $startpos}}
+  | r=regex_extention {{y = Extension r.y; loc = $startpos}}
+  | r=regex_sugar {{y = SyntaxSugar r.y; loc = $startpos}}
   | LPAR r=regex RPAR {r}
 ;
 
-qregex:
-  | FORALL qv=typed_var COMMA p=qregex {{y = RForall {qv; body = p.y}; loc = $startpos}}
-  | EXISTS qv=typed_var COMMA p=qregex {{y = RExists {qv; body = p.y}; loc = $startpos}}
-  | PI LPAR sort=IDENT SUBTYPING nt=nt RPAR COMMA p=qregex {{y = RPi {sort = (sort #: (Some nt)); body = p.y}; loc = $startpos}}
-  | FORALL LPAR sort=IDENT SUBTYPING nt=nt RPAR COMMA p=qregex {{y = RPi {sort = (sort #: (Some nt)); body = p.y}; loc = $startpos}}
-  | regex=regex {{y = Regex regex.y; loc = $startpos}}
+regex_extention:
+  | ANY {{y = AnyA; loc = $startpos}}
+  | NOT p=regex {{y = ComplementA p.y; loc = $startpos}}
   ;
 
-inst_base:
-  | id=typed_var {{y = IVar id; loc = $startpos}}
-  | c=constant {{y = IConst c; loc = $startpos}}
-  | q=qregex {{y = IQregex q.y; loc = $startpos}}
-  | LPAR i=inst RPAR {i}
+regex_sugar:
+  | p1=regex MINUS p2=regex {{y = SetMinusA(p1.y, p2.y); loc = $startpos}}
+  | CTX LSEQPRAN op_names=vars RSEQPRAN p=regex {{y = CtxOp {op_names; body = p.y}; loc = $startpos}}
+  ;
 
-inst:
-  | i1=inst i2=inst_base {{y = IApp (i1.y, i2.y); loc = $startpos}}
-  | i=inst_base {i}
+regex_expr:
+  | FORALL LPAR id=IDENT COLON nt=nt RPAR COMMA p=regex {{y = QFRegex {qv = id #: (RForall nt); body = p.y}; loc = $startpos}}
+  | EXISTS LPAR id=IDENT COLON nt=nt RPAR COMMA p=regex {{y = QFRegex {qv = id #: (RExists nt); body = p.y}; loc = $startpos}}
+  | PI LPAR qv=IDENT SUBTYPING nt=nt RPAR COMMA p=regex {{y = QFRegex {qv = qv #: (RPi nt); body = p.y}; loc = $startpos}}
+  | FORALL LPAR qv=IDENT SUBTYPING nt=nt RPAR COMMA p=regex {{y = QFRegex {qv = qv #: (RPi nt); body = p.y}; loc = $startpos}}
+  | regex=regex_base {{y = RRegex regex.y; loc = $startpos}}
+  | LET lhs=typed_var ASSIGN rhs=regex_expr IN body=regex {{y = RLet {lhs; rhs = rhs.y; body = body.y}; loc = $startpos}}
+  | id=typed_var {{y = RVar id; loc = $startpos}}
+  | c=constant {{y = RConst c; loc = $startpos}}
+  | es=regex_expr_list {
+             match es with
+             | f :: args ->
+                let y = List.fold_left (fun func arg -> RApp {func = RExpr func; arg = arg.y}) f.y args in
+                {y; loc = $startpos}
+             | [] -> failwith "die"
+         }
+  | REPEAT n=IDENT p=regex_base {{y = Repeat (n, p.y); loc = $startpos}}
 ;
 
+regex_expr_list:
+  | c=regex_expr BAR cs=regex_expr_list {c :: cs}
+  | c1=regex_expr c2=regex_expr {[c1; c2]}
+  ;
+
+regex:
+  | r=regex_base {r}
+  | r=regex_expr {{y = RExpr r.y; loc = $startpos}}
+  ;
+
 statement:
-  (* | TYPEDEF id=IDENT SUBTYPING nt=nt *)
+  | TYPEDEF id=IDENT SUBTYPING nt=nt {{y = MTyDeclSub {type_name = id; super_ty = nt}; loc = $startpos}}
   | LITDECL id=IDENT ASSIGN p=prop {{y = MAxiom {name = id; prop = p.y}; loc = $startpos}}
   | FUNCDECL id=IDENT COLON nt=nt {{y = MValDecl (id #: (Some nt)); loc = $startpos}}
   | FUNCDECL id=STRING COLON nt=nt {{y = MValDecl (id #: (Some nt)); loc = $startpos}}
-  | EVENTDECL id=IDENT COLON nt=nt {{y = MValDecl (id #: (Some
-                                                            (match nt with
-                                                             | Nt.Ty_tuple ts -> Nt.construct_arr_tp (ts, Nt.unit_ty)
-                                                             | t -> Nt.mk_arr t Nt.Ty_unit))); loc = $startpos}}
-  | TYPEDEF id=IDENT ASSIGN c=constant {{y = MConstant {name = (id #: None); const = c}; loc = $startpos}}
-  | CONSTDEF id=IDENT ASSIGN c=constant {{y = MConstant {name = (id #: None); const = c}; loc = $startpos}}
-  | SPECDEF id=IDENT ASSIGN q=qregex {{y = MSFAImp  {name = id; automata = q.y}; loc = $startpos}}
-  | MACHINEDEF id=IDENT ASSIGN q=inst {{y = MInst {name = id; inst = q.y}; loc = $startpos}}
+  | EVENTDECL id=IDENT COLON nt=nt {{y = MValDecl (id #: (Some nt)); loc = $startpos}}
+  | TYPEDEF id=IDENT ASSIGN c=constant {{y = MRegex {name = (id #: None); automata = RExpr (RConst c)}; loc = $startpos}}
+  | CONSTDEF id=IDENT ASSIGN c=constant {{y = MRegex {name = (id #: None); automata = RExpr (RConst c)}; loc = $startpos}}
+  | SPECDEF id=IDENT ASSIGN q=regex {{y = MRegex {name = (id #: None); automata = q.y}; loc = $startpos}}
+  | MACHINEDEF id=IDENT ASSIGN q=regex {{y = MRegex {name = (id #: None); automata = q.y}; loc = $startpos}}
   ;
 
 statement_list:

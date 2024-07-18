@@ -14,7 +14,7 @@ let get_type q =
   in
   aux q
 
-let subst_qregex_const regex name c =
+let subst_qregex_var_or_c regex name c =
   let rec aux = function
     | RPi { sort; body } -> RPi { sort; body = aux body }
     | RForall { qv; body } ->
@@ -23,7 +23,7 @@ let subst_qregex_const regex name c =
     | RExists { qv; body } ->
         if String.equal qv.x name then _failatwith __FILE__ __LINE__ "die"
         else RExists { qv; body = aux body }
-    | Regex r -> Regex (Regex.subst_regex_const r name c)
+    | Regex r -> Regex (Regex.subst_regex_var_or_c r name c)
   in
   aux regex
 

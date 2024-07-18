@@ -3,7 +3,6 @@ open Mtyped
 open Prop
 open Sevent
 open Regex
-open Qregex
 open Inst
 open Constructor_declaration
 
@@ -13,11 +12,11 @@ type 't item =
       type_params : string list;
       type_decls : constructor_declaration list;
     }
+  | MTyDeclSub of { type_name : string; super_ty : Nt.t }
   | MValDecl of ('t, string) typed
   | MMethodPred of ('t, string) typed
   | MAxiom of { name : string; prop : 't prop }
-  | MFAImp of { name : string; automata : ('t, string) qregex }
-  | MSFAImp of { name : string; automata : ('t, 't sevent) qregex }
-  | MConstant of { name : ('t, string) typed; const : Constant.constant }
-  | MInst of { name : string; inst : 't inst }
+  | MRegex of { name : ('t, string) typed; automata : ('t, 't sevent) regex }
+(* | MFAImp of { name : string; automata : ('t, string) re } *)
+(* | MSFAImp of { name : string; automata : ('t, 't sevent) qregex } *)
 [@@deriving sexp]
