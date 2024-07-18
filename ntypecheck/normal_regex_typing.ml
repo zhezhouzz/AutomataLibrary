@@ -93,7 +93,7 @@ let bi_regex_check (f : string -> t -> 'b) (label_check : t ctx -> 'a -> 'b)
           | Nt.Ty_arrow (t1, t2) -> (t1, t2)
           | _ ->
               let () =
-                Printf.printf "RApp: %s : %s\n" (layout_raw_regex f.x)
+                Printf.printf "RApp: %s : %s\n" (layout_sexp_regex f.x)
                   (Nt.layout f.ty)
               in
               _failatwith __FILE__ __LINE__ "wrong application"

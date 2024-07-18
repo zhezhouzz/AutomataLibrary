@@ -203,4 +203,8 @@ let desymbolic_machine checker { binding; reg } =
   let () =
     Pp.printf "\n@{<bold>After Desymbolic:@}\n%s\n" (layout_desym_regex q)
   in
+  let q = simp_regex DesymLabel.eq q in
+  let () =
+    Pp.printf "\n@{<bold>After Simplication:@}\n%s\n" (layout_desym_regex q)
+  in
   (bamp, { binding; reg = q })

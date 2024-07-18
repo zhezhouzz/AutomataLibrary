@@ -95,7 +95,7 @@ let labels_to_multiatomic ls =
   let ls = List.slow_rm_dup (fun a b -> 0 == Stdlib.compare a b) ls in
   match ls with [] -> EmptyA | [ e ] -> Atomic e | _ -> MultiAtomic ls
 
-let layout_raw_regex regex =
+let layout_sexp_regex regex =
   Sexplib.Sexp.to_string
   @@ sexp_of_regex
        (fun _ -> Sexplib.Sexp.unit)
@@ -112,7 +112,7 @@ let rec desugar regex =
   match regex with
   | RExpr (RRegex r) -> desugar r
   | RExpr _ ->
-      let () = Printf.printf "%s\n" (layout_raw_regex regex) in
+      let () = Printf.printf "%s\n" (layout_sexp_regex regex) in
       _failatwith __FILE__ __LINE__ "should be eliminated"
   | Extension r -> Extension (desugar_regex_extension r)
   | SyntaxSugar (SetMinusA (r1, r2)) ->
@@ -256,3 +256,55 @@ let mk_sevents_from_ses ses =
   in
   let all_events = List.map (fun e -> Atomic e) all_events in
   mk_landA (ses_to_regex or_events :: all_events)
+
+let simp_regex (eq : 'a -> 'a -> bool) (regex : ('t, 'a) regex) =
+  let mk_multiatom ses =
+    let ses = List.slow_rm_dup eq ses in
+    match ses with [] -> EmptyA | _ -> MultiAtomic ses
+  in
+  let rec aux regex =
+    match regex with
+    | RExpr _ | SyntaxSugar _ | Extension _ ->
+        _failatwith __FILE__ __LINE__ "should be eliminated"
+    | RepeatN (n, r) -> RepeatN (n, aux r)
+    | EmptyA -> EmptyA
+    | EpsilonA -> EpsilonA
+    | Atomic se -> MultiAtomic [ se ]
+    | MultiAtomic se -> mk_multiatom se
+    | LorA (r1, r2) -> (
+        match (aux r1, aux r2) with
+        | EmptyA, r | r, EmptyA -> r
+        | MultiAtomic r1, MultiAtomic r2 -> aux (MultiAtomic (r1 @ r2))
+        | r1, r2 -> LorA (r1, r2))
+    | LandA (r1, r2) -> (
+        match (aux r1, aux r2) with
+        | EmptyA, _ | _, EmptyA -> EmptyA
+        | MultiAtomic r1, MultiAtomic r2 ->
+            aux (MultiAtomic (List.interset eq r1 r2))
+        | r1, r2 -> LandA (r1, r2))
+    | SeqA (r1, r2) -> (
+        match (aux r1, aux r2) with
+        | EpsilonA, r | r, EpsilonA -> r
+        | r1, r2 -> SeqA (r1, r2))
+    | StarA r -> (
+        match aux r with
+        | EmptyA -> EpsilonA
+        | EpsilonA -> EpsilonA
+        | r -> StarA r)
+    | DComplementA { atoms; body } -> (
+        let atoms = List.slow_rm_dup eq atoms in
+        let any_r = mk_multiatom atoms in
+        match aux body with
+        | EmptyA -> StarA any_r
+        | EpsilonA -> LorA (any_r, SeqA (any_r, StarA any_r))
+        | body -> DComplementA { atoms; body })
+  in
+  aux regex
+
+let mk_reg_func args r =
+  List.fold_right
+    (fun arg body ->
+      match arg.ty with
+      | None -> _failatwith __FILE__ __LINE__ "the arguments must be typed"
+      | Some ty -> RExpr (QFRegex { qv = arg.x #: (RForall ty); body }))
+    args r

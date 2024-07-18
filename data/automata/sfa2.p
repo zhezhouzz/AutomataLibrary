@@ -7,14 +7,20 @@ type key <: int;
 event write : <k : key; value: int>;
 event read : <k : key >;
 
-machine w1 = forall (s: server), forall (y: key),
+machine w1 (s: server) (y: key) =
    <[function
      | write -> k == y
      | all -> dest == s]>;
 
-machine prop = forall (n: int), forall (serv : server), forall (y:key),
- ctx [| read write |]
-   (((w1 serv) y) ~ (rep n .)~(<[ write x value | dest == serv && x == y ]>*));
+machine w2 (s: server) (y: key) =
+   <[function
+     | write -> k != y
+     | all -> dest == s]>;
+
+machine prop (n: int) =
+   forall (serv : server), forall (y: key),
+ctx [| read write |]
+((w1 serv y) ~ (rep n .) ~ (w2 serv y)*);
 
 const serverType = [|1; 2|];
 const valueType = [|1; 2; 3|];

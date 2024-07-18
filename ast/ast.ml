@@ -36,4 +36,5 @@ module DesymLabel = struct
   let compare (a : t) (b : t) = Stdlib.compare a b
   let layout (op, id) = op ^ ":" ^ string_of_int id
   let delimit_cotexnt_char (_, c) = [ c ]
+  let eq (s1, i1) (s2, i2) = String.equal s1 s2 && Int.equal i1 i2
 end

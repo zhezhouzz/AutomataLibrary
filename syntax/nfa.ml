@@ -807,7 +807,9 @@ module MakeAutomata (C : CHARACTER) = struct
                 (*      (complement_dfa ctx @@ aux r1) *)
                 (*      (complement_dfa ctx @@ aux r2) *)
                 intersect_dfa (aux r1) (aux r2)
-            | _ -> _failatwith __FILE__ __LINE__ "die")
+            | _ ->
+                let () = Printf.printf "?? %s\n" @@ Regex.layout_sexp_regex r in
+                _failatwith __FILE__ __LINE__ "die")
       in
       (* let () = *)
       (*   Printf.printf "compile2dfa: %s\n" *)

@@ -183,24 +183,24 @@ regex_expr:
   | LET lhs=typed_var ASSIGN rhs=regex_expr IN body=regex {{y = RLet {lhs; rhs = rhs.y; body = body.y}; loc = $startpos}}
   | id=typed_var {{y = RVar id; loc = $startpos}}
   | c=constant {{y = RConst c; loc = $startpos}}
-  | es=regex_expr_list {
-             match es with
-             | f :: args ->
-                let y = List.fold_left (fun func arg -> RApp {func = RExpr func; arg = arg.y}) f.y args in
-                {y; loc = $startpos}
-             | [] -> failwith "die"
-         }
   | REPEAT n=IDENT p=regex_base {{y = Repeat (n, p.y); loc = $startpos}}
 ;
 
 regex_expr_list:
-  | c=regex_expr BAR cs=regex_expr_list {c :: cs}
-  | c1=regex_expr c2=regex_expr {[c1; c2]}
+  | c=regex_expr cs=regex_expr_list {c :: cs}
+  | c1=regex_expr {[c1]}
   ;
 
 regex:
   | r=regex_base {r}
-  | r=regex_expr {{y = RExpr r.y; loc = $startpos}}
+  | es=regex_expr_list {
+           match es with
+           | [] -> failwith "die"
+           | [r] -> {y = RExpr r.y; loc = $startpos}
+           | f :: args ->
+              let y = List.fold_left (fun func arg -> RApp {func = RExpr func; arg = arg.y}) f.y args in
+              {y = RExpr y; loc = $startpos}
+         }
   ;
 
 statement:
@@ -213,6 +213,7 @@ statement:
   | CONSTDEF id=IDENT ASSIGN c=constant {{y = MRegex {name = (id #: None); automata = RExpr (RConst c)}; loc = $startpos}}
   | SPECDEF id=IDENT ASSIGN q=regex {{y = MRegex {name = (id #: None); automata = q.y}; loc = $startpos}}
   | MACHINEDEF id=IDENT ASSIGN q=regex {{y = MRegex {name = (id #: None); automata = q.y}; loc = $startpos}}
+  | MACHINEDEF id=IDENT args=typed_vars ASSIGN q=regex {{y = MRegex {name = (id #: None); automata = mk_reg_func args q.y}; loc = $startpos}}
   ;
 
 statement_list:

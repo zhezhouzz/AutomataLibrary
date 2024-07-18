@@ -94,7 +94,7 @@ let gather_se { global_lits; local_lits } sevent =
       let lits = Prop.get_lits phi in
       let vs' = List.map (fun x -> x.x) vs in
       let is_contain_local_free lit =
-        match List.interset ( == ) vs' @@ Lit.fv_lit_id lit with
+        match List.interset String.equal vs' @@ Lit.fv_lit_id lit with
         | [] -> false
         | _ -> true
       in
