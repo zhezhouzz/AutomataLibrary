@@ -3,6 +3,7 @@
  (name backend)
  (wrapped true)
  (modules
+   plang
    automata
    backend
  )

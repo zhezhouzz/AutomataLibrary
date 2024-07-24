@@ -27,6 +27,7 @@
    constructor_declaration
    inst
    item
+   pmachine
    ast
  )
  (preprocess

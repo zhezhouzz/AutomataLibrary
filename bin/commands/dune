@@ -8,7 +8,8 @@
   ntypecheck
   desymbolic
   instantiate
-  frontp
+  frontSpec
+  frontFuncP
   )
  (modules
   caux

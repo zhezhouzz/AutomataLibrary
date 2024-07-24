@@ -13,6 +13,7 @@ include Item
 include Inst
 include Mtyped
 include Sugar
+include Pmachine
 
 let ty_set (t : Nt.t) = Nt.Ty_constructor ("set", [ t ])
 

@@ -8,15 +8,15 @@
 )
 
 (library
- (name frontp)
- (public_name automata_library.frontp)
+ (name frontSpec)
+ (public_name automata_library.frontSpec)
  (wrapped true)
  (modules_without_implementation past)
  (modules
    lexer
    parser
    past
-   frontp
+   frontSpec
  )
  (libraries syntax menhirLib core)
 )

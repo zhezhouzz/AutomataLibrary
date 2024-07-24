@@ -15,8 +15,19 @@ let read_source_file source_file () =
   let postfix = List.last @@ String.split source_file ~on:'.' in
   match postfix with
   | "ml" -> read_ocaml_file source_file ()
-  | "p" -> Frontp.parse source_file
+  | "p" -> FrontSpec.parse source_file
   | _ -> failwith @@ spf "wrong file extension *.%s" postfix
+
+let read_functional_p_file source_file () =
+  let postfix = List.last @@ String.split source_file ~on:'.' in
+  match postfix with
+  | "funcp" -> FrontFuncP.parse source_file
+  | _ -> failwith @@ spf "wrong file extension *.%s" postfix
+
+let read_p source_file () =
+  let code = read_functional_p_file source_file () in
+  let () = Printf.printf "%s\n" (layout_p_program code) in
+  ()
 
 (* let get_sfa_by_name code n = *)
 (*   let tmp = *)
@@ -153,4 +164,5 @@ let test =
     [
       ("read-automata", one_param "read_automata" read_automata);
       ("read-sfa", one_param "read_sfa" read_sfa);
+      ("read-p", one_param "read_p" read_p);
     ]

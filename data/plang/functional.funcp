@@ -1,0 +1,15 @@
+machine Client
+  local
+    (fuel: int) (keyDomain: int set)
+  func
+    plain randomEvent (actions: action set) = ((1 + 3) > 4)
+    plain randomEvent2 (actions: action set) = ((1 + 3) > 4) {
+  state Init {
+      entry (s: int) = s + 5
+      listen writeResp on (s: int) = a + 1
+  }
+  state Loop {
+      entry (s: int) = s + 5
+      listen writeResp on (a: int) = (a := 1); (goto Loop)
+  }
+}
