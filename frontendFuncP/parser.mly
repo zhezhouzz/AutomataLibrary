@@ -8,7 +8,7 @@
 
 (* tokens *)
 (* keywords *)
-%token EOF TYPEDEF CONSTDEF SPECDEF MACHINEDEF FUNCDECL EVENTDECL LITDECL LET FUNCTION ALL GOTO
+%token EOF TYPEDEF CONSTDEF SPECDEF MACHINEDEF FUNCDECL EVENTDECL LITDECL LET FUNCTION ALL GOTO DEREF
 %token STATE HOT COLD START PLAIN ENTRY EXIT LISTEN ON LOCAL FUNC THIS HALT NULL RANDOMBOOL
 (* arithmetic operators *)
 %token PLUS MINUS STAR DIV LT GT LE GE NEQ EQ
@@ -72,9 +72,9 @@ biop:
   | STAR {"*"}
   | DIV {"/"}
   | LT {"<"}
-  | GT {">="}
-  | LE {">="}
-  | GE {">"}
+  | GT {">"}
+  | LE {"<="}
+  | GE {">="}
   | EQ {"=="}
   | NEQ {"!="}
   | AND {"&&"}
@@ -99,13 +99,11 @@ vars:
 
 constant:
   | HALT {PHalt}
-  | THIS {PThis}
   | RANDOMBOOL {PRandomBool}
-  | NULL {PNull}
   | TRUE {PBool true}
   | FALSE {PBool false}
   | n=NUMBER {PInt n}
-  | LSEQPRAN cs=constant_list RSEQPRAN {PSeqLit cs}
+  (* | LSEQPRAN cs=constant_list RSEQPRAN {PSeqLit cs} *)
 ;
 
 constant_list:
@@ -118,29 +116,32 @@ id_eq_expr_list:
 | id=IDENT ASSIGN expr=expr {[(id, expr.y)]}
 ;
 
-expr_base:
-| c=constant {{y = (PConst (c #: None)) #: None; loc = $startpos}}
+expr_closed:
+| NULL {{y = PNull #: None; loc = $startpos}}
+| THIS {{y = PThis #: None; loc = $startpos}}
+| c=constant {{y = (PConst c) #: None; loc = $startpos}}
 | id=typed_var {{y = (Pid id) #: None; loc = $startpos}}
-| record=expr_base DOT field=IDENT {{y = (PField {record = record.y; field}) #: None; loc = $startpos}}
+| record=expr_closed DOT field=IDENT {{y = (PField {record = record.y; field}) #: None; loc = $startpos}}
 | LBRACKET es=id_eq_expr_list RBRACKET {{y = (PRecord es) #: None; loc = $startpos}}
 | LBRACKET es=id_eq_expr_list SEMICOLON RBRACKET {{y = (PRecord es) #: None; loc = $startpos}}
-| lvalue=expr_base COLONEQ rvalue=expr_base {{y = (PAssign {lvalue = lvalue.y; rvalue = rvalue.y}) #: None; loc = $startpos}}
 | LET lhs=typed_var ASSIGN rhs=expr SEMICOLON body=expr
   {{y = (PLet {lhs; rhs = rhs.y; body = body.y}) #: None; loc = $startpos}}
-| NOT e=expr {{y = (PApp {pfunc = ("not" #: None); args = [e.y]}) #: None; loc = $startpos}}
 | GOTO st=IDENT {{ y = (PGoto st) #: None; loc = $startpos}}
+| DEREF e=expr_closed {{ y = (PDeref e.y) #: None; loc = $startpos}}
+| NOT e=expr_closed {{y = (PApp {pfunc = ("not" #: None); args = [e.y]}) #: None; loc = $startpos}}
+| e1=expr_closed op=biop e2=expr_closed {{y = (PApp {pfunc = (op #: None); args = [e1.y; e2.y]}) #: None; loc = $startpos}}
 | LPAR e=expr RPAR {e}
 ;
 
 expr_list:
-| c=expr cs=expr_list {c :: cs}
-| c1=expr {[c1]}
+| c=expr_closed cs=expr_list {c :: cs}
+| c1=expr_closed {[c1]}
 ;
 
 expr:
-| r=expr_base {r}
-| rhs=expr_base SEMICOLON body=expr_base {{y = (PSeq {rhs = rhs.y; body = body.y}) #: None; loc = $startpos}}
-| e1=expr_base op=biop e2=expr_base {{y = (PApp {pfunc = (op #: None); args = [e1.y; e2.y]}) #: None; loc = $startpos}}
+| r=expr_closed {r}
+| lvalue=expr_closed COLONEQ rvalue=expr {{y = (PAssign {lvalue = lvalue.y; rvalue = rvalue.y}) #: None; loc = $startpos}}
+| rhs=expr_closed SEMICOLON body=expr {{y = (PSeq {rhs = rhs.y; body = body.y}) #: None; loc = $startpos}}
 | pfunc=typed_var args=expr_list {{y = (PApp {pfunc; args = (_gets args)}) #: None; loc = $startpos}}
 ;
 
@@ -170,8 +171,8 @@ func_label:
 ;
 
 labeled_func_list:
-| fl=func_label fd=func_decl cs=labeled_func_list {(fl, fd.y):: cs}
-| fl=func_label fd=func_decl {[(fl, fd.y)]}
+| fl=func_label fd=func_decl cs=labeled_func_list {(fl #: None, fd.y):: cs}
+| fl=func_label fd=func_decl {[(fl #: None, fd.y)]}
 ;
 
 named_func_list:
@@ -203,6 +204,8 @@ machine:
 ;
 
 item:
+  | FUNCDECL id=biop COLON nt=nt {{y = PPrimFuncDecl (id #: (Some nt)); loc = $startpos}}
+  | FUNCDECL id=IDENT COLON nt=nt {{y = PPrimFuncDecl (id #: (Some nt)); loc = $startpos}}
   | m=machine {{y = PMachine m.y; loc = $startpos}}
   | PLAIN pfunc=IDENT fd=func_decl {{y = PGlobalFunc (pfunc #: None, fd.y); loc = $startpos}}
 ;

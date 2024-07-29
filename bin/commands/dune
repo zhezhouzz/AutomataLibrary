@@ -6,7 +6,9 @@
   core_unix.sys_unix
   language
   ntypecheck
+  ptypecheck
   desymbolic
+  dequantified
   instantiate
   frontSpec
   frontFuncP

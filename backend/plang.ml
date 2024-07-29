@@ -1,15 +1,34 @@
 open Ast
 open Zzdatatype.Datatype
 
+(** types in P lang is shown in a different way from our types. *)
+let layout_pnt t =
+  let open Nt in
+  let rec aux = function
+    | Ty_constructor (name, [ ty ]) when String.equal name "seq" ->
+        spf "seq[%s]" (aux ty)
+    | Ty_constructor (name, [ ty ]) when String.equal name "ref" -> aux ty
+    | Ty_constructor (name, [ ty1; ty2 ]) when String.equal name "map" ->
+        spf "map[%s, %s]" (aux ty1) (aux ty2)
+    | Ty_tuple ts when List.length ts > 1 ->
+        spf "(%s)" @@ List.split_by_comma aux ts
+    | _ as t -> layout t
+  in
+  aux t
+
+let layout_pnt_typed str x =
+  match x with NT.Ty_unit -> str | _ -> spf "%s: %s" str (layout_pnt x)
+
+let layout_pnt_typed_var x = spf "%s: %s" x.x (layout_pnt x.ty)
+
 let layout_const = function
   | PBool b -> string_of_bool b
   | PInt i -> string_of_int i
   | PStr str -> spf "\"%s\"" str
-  | PNull -> "null"
   | PHalt -> "halt"
-  | PThis -> "this"
   | PRandomBool -> "$"
-  | _ -> _failatwith __FILE__ __LINE__ "unimp"
+  | PUnit -> ""
+(* | _ -> _failatwith __FILE__ __LINE__ "unimp" *)
 
 let mk_indent n str = spf "%s%s" (String.init (n * 2) (fun _ -> ' ')) str
 let mk_indent_line n str = spf "%s%s\n" (String.init (n * 2) (fun _ -> ' ')) str
@@ -18,8 +37,10 @@ let mk_indent_semicolon_line n str =
   spf "%s%s;\n" (String.init (n * 2) (fun _ -> ' ')) str
 
 let rec layout_p_expr n = function
+  | PThis -> "this"
+  | PNull -> "null"
   | Pid id -> id.x
-  | PConst c -> layout_const c.x
+  | PConst c -> layout_const c
   | PApp { pfunc; args }
     when List.exists (String.equal pfunc.x) p_infix_operator -> (
       match args with
@@ -36,6 +57,11 @@ let rec layout_p_expr n = function
            l)
   | PField { record; field } ->
       spf "(%s).%s" (layout_typed_p_expr 0 record) field
+  | PAccess { container; index } ->
+      spf "%s[%s]"
+        (layout_typed_p_expr 0 container)
+        (layout_typed_p_expr 0 index)
+  | PDeref e -> layout_typed_p_expr n e (* P don't show the dereference *)
   | PAssign { lvalue; rvalue } ->
       spf "%s = %s"
         (layout_typed_p_expr 0 lvalue)
@@ -45,18 +71,37 @@ let rec layout_p_expr n = function
       spf "%s;\n%s" rhs (mk_indent n @@ layout_typed_p_expr n body)
   | PReturn e -> spf "return %s" (layout_typed_p_expr n e)
   | PGoto state -> spf "goto %s" state
+  | ForeachSeq { elem; seq; body } ->
+      let head =
+        spf "foreach (%s in %s) {" elem.x (layout_typed_p_expr 0 seq)
+      in
+      let last = mk_indent n "}" in
+      spf "%s\n%s%s" head
+        (mk_indent_semicolon_line (n + 1) @@ layout_typed_p_expr (n + 1) body)
+        last
+  | ForeachMap { key; value; map; body } ->
+      let head =
+        spf "foreach ((%s, %s) in %s) {" key.x value.x
+          (layout_typed_p_expr 0 map)
+      in
+      let last = mk_indent n "}" in
+      spf "%s\n%s%s" head
+        (mk_indent_semicolon_line (n + 1) @@ layout_typed_p_expr (n + 1) body)
+        last
   | PLet _ -> _failatwith __FILE__ __LINE__ "unimp"
 
 and layout_typed_p_expr n { x; _ } = layout_p_expr n x
 
 let layout_p_func n { params; local_vars; body } =
-  let params_str = List.split_by "," (fun x -> spf "%s: int" x.x) params in
+  let params_str = List.split_by "," layout_pnt_typed_var params in
   let local_vars_str =
     List.split_by ""
-      (fun x -> mk_indent_semicolon_line (n + 1) @@ spf "var %s: int" x.x)
+      (fun x ->
+        mk_indent_semicolon_line (n + 1)
+        @@ spf "var %s" @@ layout_pnt_typed_var x)
       local_vars
   in
-  let head = spf "(%s) = {\n" params_str in
+  let head = layout_pnt_typed (spf "(%s)" params_str) body.ty ^ " = {\n" in
   let last = mk_indent_line n "}" in
   spf "%s%s%s%s" head local_vars_str
     (mk_indent_semicolon_line (n + 1) (layout_typed_p_expr (n + 1) body))
@@ -79,7 +124,7 @@ let layout_p_state n { name; state_label; state_body } =
     List.split_by ""
       (fun (l, f) ->
         mk_indent_line (n + 1)
-        @@ spf "%s %s" (layout_func_label l) (layout_p_func (n + 1) f))
+        @@ spf "%s %s" (layout_func_label l.x) (layout_p_func (n + 1) f))
       state_body
   in
   let head = mk_indent_line n @@ spf "state %s %s {" name prefix in
@@ -95,7 +140,9 @@ let layout_p_machine n { name; local_vars; local_funcs; states } =
   in
   let local_vars_str =
     List.split_by ""
-      (fun x -> mk_indent_semicolon_line (n + 1) @@ spf "var %s: int" x.x)
+      (fun x ->
+        mk_indent_semicolon_line (n + 1)
+        @@ spf "var %s" @@ layout_pnt_typed_var x)
       local_vars
   in
   let states_str = List.split_by "" (layout_p_state (n + 1)) states in
@@ -107,6 +154,9 @@ let layout_global_function n (name, f) =
   mk_indent_line n @@ spf "fun %s = %s" name.x (layout_p_func n f)
 
 let layout_item = function
+  | PPrimFuncDecl _ -> ""
+  (* | PPrimFuncDecl x -> *)
+  (*     mk_indent_semicolon_line 0 @@ spf "val %s" @@ layout_pnt_typed_var x *)
   | PMachine m -> layout_p_machine 0 m
   | PGlobalFunc (name, f) -> layout_global_function 0 (name, f)
 

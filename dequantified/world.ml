@@ -1,0 +1,122 @@
+open Language
+open Zzdatatype.Datatype
+open Qtype
+
+let state_name = "state"
+
+type world =
+  | WState (* always int *)
+  | WSingle of {
+      (* e.g., exists (a: account <: int) *)
+      qv : (Nt.t, string) typed;
+      abstract_type : Nt.t;
+      world : world;
+    }
+  | WMap of {
+      (* e.g., forall (a: account <: int) *)
+      qv : (Nt.t, string) typed;
+      abstract_type : Nt.t;
+      world : world;
+    }
+
+type qindex = int list
+type pexpr = (Nt.t, Nt.t p_expr) typed
+
+let rec world_to_nt = function
+  | WState -> Nt.Ty_int
+  | WSingle { qv; world; _ } -> Nt.Ty_tuple [ qv.ty; world_to_nt world ]
+  | WMap { qv; world; _ } -> mk_p_map_ty qv.ty (world_to_nt world)
+
+let rec get_qvs_from_world = function
+  | WState -> [ state_name #: Nt.Ty_int ]
+  | WSingle { qv; world; _ } -> qv :: get_qvs_from_world world
+  | WMap { qv; world; _ } -> qv :: get_qvs_from_world world
+
+let fresh_qv nt =
+  let name = Rename.unique "_w" in
+  name #: nt
+
+let default_world_name = "world"
+let world_decl world = default_world_name #: (world_to_nt world)
+let world_expr world = mk_pid @@ world_decl world
+
+let world_iter (f : pexpr StrMap.t -> pexpr) (world : world) : pexpr =
+  let world_expr = world_expr world in
+  let rec aux m world_expr world =
+    match world with
+    | WState -> f (StrMap.add state_name world_expr m)
+    | WSingle { qv; world; _ } ->
+        let value, world_expr = mk_depair world_expr in
+        let m = StrMap.add qv.x value m in
+        aux m world_expr world
+    | WMap { qv; world; _ } ->
+        let key = qv in
+        let value = fresh_qv (world_to_nt world) in
+        let m = StrMap.add qv.x (mk_pid value) m in
+        let body = aux m (mk_pid value) world in
+        mk_foreach_map key value world_expr body
+  in
+  aux StrMap.empty world_expr world
+
+let initial_state = 0
+let initial_state_expr = mk_p_int initial_state
+let world_init_function = "world_init_function"
+
+let world_init_expr (world : world) =
+  let rec aux world_expr (world : world) =
+    match world with
+    | WState -> mk_p_assign (world_expr, initial_state_expr)
+    | WSingle { qv; world; abstract_type } ->
+        let value, world_expr = mk_depair world_expr in
+        let e1 =
+          mk_p_assign (value, qtype_choose_expr (abstract_type, qv.ty))
+        in
+        let e2 = aux world_expr world in
+        mk_p_seq e1 e2
+    | WMap { qv; world; abstract_type } ->
+        let world_expr = mk_p_access (world_expr, mk_pid qv) in
+        let e = aux world_expr world in
+        let e =
+          mk_foreach_seq qv (qtype_domain_expr (abstract_type, qv.ty)) e
+        in
+        e
+  in
+  let body = aux (world_expr world) world in
+  (world_init_function #: Nt.Ty_unit, { params = []; local_vars = []; body })
+
+let machine_register_world { name; local_vars; local_funcs; states }
+    (world : world) =
+  {
+    name;
+    local_vars = world_decl world :: local_vars;
+    local_funcs = world_init_expr world :: local_funcs;
+    states;
+  }
+
+let mk_int_forall_world qv world =
+  WMap { qv = qv.x #: Nt.Ty_int; abstract_type = qv.ty; world }
+
+let mk_int_exists_world qv world =
+  WSingle { qv = qv.x #: Nt.Ty_int; abstract_type = qv.ty; world }
+
+let _test_world1 = WState
+
+let _test_world2 =
+  mk_int_forall_world "a" #: (mk_p_abstract_ty "account") WState
+
+let _test_world3 =
+  mk_int_exists_world "a" #: (mk_p_abstract_ty "account") WState
+
+let _test_world4 =
+  mk_int_forall_world "s" #: (mk_p_abstract_ty "server") _test_world2
+
+let _test_world5 =
+  mk_int_forall_world "s" #: (mk_p_abstract_ty "server") _test_world3
+
+let _test_world6 =
+  mk_int_exists_world "s" #: (mk_p_abstract_ty "server") _test_world2
+
+let _test_world7 =
+  mk_int_exists_world "s" #: (mk_p_abstract_ty "server") _test_world3
+
+let machine_register_world_test m = machine_register_world m _test_world7

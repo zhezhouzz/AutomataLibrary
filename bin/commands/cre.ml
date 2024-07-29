@@ -26,6 +26,10 @@ let read_functional_p_file source_file () =
 
 let read_p source_file () =
   let code = read_functional_p_file source_file () in
+  let code = Ptypecheck.p_items_infer emp code in
+  let code = map_on_p_machine Dequantified.machine_register_qtypes_test code in
+  let () = Printf.printf "%s\n" (layout_p_program code) in
+  let code = map_on_p_machine Dequantified.machine_register_world_test code in
   let () = Printf.printf "%s\n" (layout_p_program code) in
   ()
 
@@ -121,7 +125,7 @@ let read_sfa source_file () =
     @@ List.filter_map (fun x ->
            let* m = Instantiate.regex_expr_to_machine_opt x.ty in
            Some (x.x, m))
-    @@ to_list machines
+    @@ ctx_to_list machines
   in
   let () =
     StrMap.iter

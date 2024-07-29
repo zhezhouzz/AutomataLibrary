@@ -33,4 +33,4 @@ let add_to_right : 'a. 'a ctx -> ('a, string) typed -> 'a ctx =
   | None -> ( match ctx with Typectx l -> Typectx (l @ [ { x; ty } ]))
 
 let add_to_rights ctx l = List.fold_left add_to_right ctx l
-let to_list ctx = match ctx with Typectx l -> l
+let ctx_to_list ctx = match ctx with Typectx l -> l

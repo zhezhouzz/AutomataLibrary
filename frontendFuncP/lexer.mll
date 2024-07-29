@@ -67,17 +67,7 @@ rule next_token = parse
   | "null" {NULL}
   | '$' {RANDOMBOOL}
   | "goto" {GOTO}
-  (* arithmetic operators *)
-  | "-" {MINUS}
-  | "+" {PLUS}
-  | "==" {EQ}
-  | "!=" {NEQ}
-  | "<" {LT}
-  | ">" {GT}
-  | "<=" {LE}
-  | ">=" {GE}
-  | "*" {STAR}
-  | '\\' {DIV}
+  | '!' {DEREF}
   (* logic operators *)
   | "not" {NOT}
   | "&&" {AND}
@@ -98,6 +88,17 @@ rule next_token = parse
   | "." {DOT}
   | ":=" {COLONEQ}
   | "=" {ASSIGN}
+  (* arithmetic operators *)
+  | "-" {MINUS}
+  | "+" {PLUS}
+  | "==" {EQ}
+  | "!=" {NEQ}
+  | "<=" {LE}
+  | ">=" {GE}
+  | '<' {LT}
+  | '>' {GT}
+  | "*" {STAR}
+  | '\\' {DIV}
   (* paranthesis *)
   | '(' { LPAR }
   | ')' { RPAR }
