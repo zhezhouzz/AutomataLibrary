@@ -112,4 +112,39 @@ module SFA = struct
       { start = dfa.start; finals = dfa.finals; next = construct_next next }
     in
     normalize_dfa sfa
+
+  (* open Zzdatatype.Datatype *)
+
+  let rename_sevent event_ctx (dfa : dfa) =
+    let f = function
+      | GuardEvent _ -> _failatwith __FILE__ __LINE__ "die"
+      | EffEvent { op; vs; phi } ->
+          let l =
+            match get_opt event_ctx op with
+            | Some (Nt.Ty_record l) -> l
+            | None -> _failatwith __FILE__ __LINE__ (spf "die: None on %s" op)
+            | Some ty ->
+                _failatwith __FILE__ __LINE__ (spf "die: %s" (Nt.layout ty))
+          in
+          let vs' = List.map (fun (x, ty) -> x #: ty) l in
+          (* let () = *)
+          (*   Printf.printf "vs: %s\n" *)
+          (*   @@ List.split_by_comma *)
+          (*        (fun x -> spf "%s:%s" x.x (Nt.layout x.ty)) *)
+          (*        vs *)
+          (* in *)
+          (* let () = *)
+          (*   Printf.printf "vs': %s\n" *)
+          (*   @@ List.split_by_comma *)
+          (*        (fun x -> spf "%s:%s" x.x (Nt.layout x.ty)) *)
+          (*        vs' *)
+          (* in *)
+          let phi' =
+            List.fold_right
+              (fun (v, v') -> subst_prop_instance v.x (AVar v'))
+              (List.combine vs vs') phi
+          in
+          EffEvent { op; vs = vs'; phi = phi' }
+    in
+    map_on_char_dfa dfa f
 end

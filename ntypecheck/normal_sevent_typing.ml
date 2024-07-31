@@ -7,8 +7,9 @@ let bi_sevent_check (ctx : Nt.t ctx) (sevent : Nt.t option sevent) : Nt.t sevent
     =
   match sevent with
   | GuardEvent { vs; phi } ->
-      let vs = (__server_feild #: (Some server_type)) :: vs in
-      let bindings = List.map (__force_typed __FILE__ __LINE__) vs in
+      let bindings =
+        default_serv_field :: (List.map (__force_typed __FILE__ __LINE__)) vs
+      in
       let ctx' = add_to_rights ctx bindings in
       let phi = bi_typed_prop_check ctx' phi in
       let res = GuardEvent { vs = bindings; phi } in
@@ -41,7 +42,7 @@ let bi_sevent_check (ctx : Nt.t ctx) (sevent : Nt.t option sevent) : Nt.t sevent
           in
           let _, vs = List.split vs in
           (* we always add the server type *)
-          let vs = (__server_feild #: (Some server_type)) :: vs in
+          (* let vs = (__server_feild #: (Some server_type)) :: vs in *)
           let bindings = List.map (__force_typed __FILE__ __LINE__) vs in
           let ctx' = add_to_rights ctx bindings in
           let phi = bi_typed_prop_check ctx' phi in

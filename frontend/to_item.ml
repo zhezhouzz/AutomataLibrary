@@ -97,6 +97,7 @@ let layout_opt_ty = function None -> "?" | Some t -> Nt.layout t
 
 let layout_opt_item = function
   | MTyDecl _ -> _failatwith __FILE__ __LINE__ "die"
+  | MEventDecl { ev = x; _ } -> spf "val %s: %s" x.x @@ layout_ct_opt x.ty
   | MTyDeclSub { type_name; super_ty } ->
       spf "type %s = %s" type_name @@ Nt.layout super_ty
   | MMethodPred x ->
@@ -110,6 +111,7 @@ let layout_opt_item = function
 
 let layout_item = function
   | MTyDecl _ -> _failatwith __FILE__ __LINE__ "die"
+  | MEventDecl { ev = x; _ } -> spf "val %s: %s" x.x @@ Nt.layout x.ty
   | MTyDeclSub { type_name; super_ty } ->
       spf "type %s = %s" type_name @@ Nt.layout super_ty
   | MMethodPred x -> spf "val[@method_predicate] %s: %s" x.x @@ Nt.layout x.ty

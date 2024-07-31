@@ -52,6 +52,8 @@ rule next_token = parse
   | "in" {IN}
   | "function" {FUNCTION}
   | "all" {ALL}
+  | "request" {REQUEST}
+  | "response" {RESPONSE}
   (* arithmetic operators *)
   | "-" {MINUS}
   | "+" {PLUS}

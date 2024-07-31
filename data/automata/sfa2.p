@@ -4,8 +4,8 @@ val "!=" : 'a -> 'a -> bool;
 type server <: int;
 type key <: int;
 
-event write : <k : key; value: int>;
-event read : <k : key >;
+request event write : <k : key; value: int>;
+request event read : <k : key >;
 
 machine w1 (s: server) (y: key) =
    <[function

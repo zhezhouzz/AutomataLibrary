@@ -2,8 +2,8 @@ type st = int;
 type action = string;
 type server = int;
 type key = int;
-event write: (x_0: server, x_1: key, x_2: int);
-event read: (x_0: server, x_1: key);
+event write: (dest: server, k: key, value: int);
+event read: (dest: server, k: key);
 machine Client {
   var action_domain: set[string];
   var final_states: set[int];
@@ -50,13 +50,13 @@ machine Client {
     };
     return res;
   }
-  fun random_event_write (): (x_0: int, x_1: int, x_2: int) {
-    return (x_0 = choose(server_Domain), x_1 = choose(key_Domain), x_2 = choose(10000));
+  fun random_event_write (): (dest: int, k: int, value: int) {
+    return (dest = choose(server_Domain), k = choose(key_Domain), value = choose(10000));
   }
-  fun random_event_read (): (x_0: int, x_1: int) {
-    return (x_0 = choose(server_Domain), x_1 = choose(key_Domain));
+  fun random_event_read (): (dest: int, k: int) {
+    return (dest = choose(server_Domain), k = choose(key_Domain));
   }
-  fun validate_write (serv: int,y: int,m: map[int, int],input: (x_0: server, x_1: key, x_2: int)): (bool, int) {
+  fun validate_write (serv: int,y: int,m: map[int, int],input: (dest: server, k: key, value: int)): (bool, int) {
     var next_state: int;
     var if_valid: bool;
     if_valid = false;
@@ -74,7 +74,7 @@ machine Client {
     };
     return (if_valid, next_state);
   }
-  fun validate_read (serv: int,y: int,m: map[int, int],input: (x_0: server, x_1: key)): (bool, int) {
+  fun validate_read (serv: int,y: int,m: map[int, int],input: (dest: server, k: key)): (bool, int) {
     var next_state: int;
     var if_valid: bool;
     if_valid = false;
@@ -84,7 +84,7 @@ machine Client {
     };
     return (if_valid, next_state);
   }
-  fun next_world_write (input: (x_0: server, x_1: key, x_2: int)): bool {
+  fun next_world_write (input: (dest: server, k: key, value: int)): bool {
     var tmp_world: map[int, map[int, int]];
     var if_valid: bool;
     var serv: int;
@@ -107,7 +107,7 @@ machine Client {
     };
     return if_valid;
   }
-  fun next_world_read (input: (x_0: server, x_1: key)): bool {
+  fun next_world_read (input: (dest: server, k: key)): bool {
     var tmp_world: map[int, map[int, int]];
     var if_valid: bool;
     var serv: int;
@@ -132,8 +132,8 @@ machine Client {
   }
   fun do_action (): bool {
     var action: string;
-    var event_write: (x_0: server, x_1: key, x_2: int);
-    var event_read: (x_0: server, x_1: key);
+    var event_write: (dest: server, k: key, value: int);
+    var event_read: (dest: server, k: key);
     action = choose(get_available_actions());
     if (("write" == action)) {
       event_write = random_event_write();
@@ -191,39 +191,39 @@ machine Client {
     transitions[0]["write"] = default(map[int, int]);
     transitions[0]["write"][2] = 1;
   }
-  fun prop_write_2 (serv: int,y: int,input: (x_0: server, x_1: key, x_2: int)): bool {
-    var x_0: server;
-    var x_1: key;
-    var x_2: int;
-    x_0 = (input).x_0;
-    x_1 = (input).x_1;
-    x_2 = (input).x_2;
-    return ((((x_1 == y) && !((x_1 != y))) && (x_0 == serv)) && (((x_1 == y) && (x_1 != y)) && (x_0 == serv)));
+  fun prop_write_2 (serv: int,y: int,input: (dest: server, k: key, value: int)): bool {
+    var dest: server;
+    var k: key;
+    var value: int;
+    dest = (input).dest;
+    k = (input).k;
+    value = (input).value;
+    return ((((k == y) && !((k != y))) && (dest == serv)) && (((k == y) && (k != y)) && (dest == serv)));
   }
-  fun prop_write_1 (serv: int,y: int,input: (x_0: server, x_1: key, x_2: int)): bool {
-    var x_0: server;
-    var x_1: key;
-    var x_2: int;
-    x_0 = (input).x_0;
-    x_1 = (input).x_1;
-    x_2 = (input).x_2;
-    return (((((((((!((x_1 == y)) && !((x_1 != y))) && !((x_0 == serv))) && (((x_1 == y) && !((x_1 != y))) && !((x_0 == serv)))) && ((!((x_1 == y)) && !((x_1 != y))) && (x_0 == serv))) && (((x_1 == y) && !((x_1 != y))) && (x_0 == serv))) && ((!((x_1 == y)) && (x_1 != y)) && !((x_0 == serv)))) && (((x_1 == y) && (x_1 != y)) && !((x_0 == serv)))) && ((!((x_1 == y)) && (x_1 != y)) && (x_0 == serv))) && (((x_1 == y) && (x_1 != y)) && (x_0 == serv)));
+  fun prop_write_1 (serv: int,y: int,input: (dest: server, k: key, value: int)): bool {
+    var dest: server;
+    var k: key;
+    var value: int;
+    dest = (input).dest;
+    k = (input).k;
+    value = (input).value;
+    return (((((((((!((k == y)) && !((k != y))) && !((dest == serv))) && (((k == y) && !((k != y))) && !((dest == serv)))) && ((!((k == y)) && !((k != y))) && (dest == serv))) && (((k == y) && !((k != y))) && (dest == serv))) && ((!((k == y)) && (k != y)) && !((dest == serv)))) && (((k == y) && (k != y)) && !((dest == serv)))) && ((!((k == y)) && (k != y)) && (dest == serv))) && (((k == y) && (k != y)) && (dest == serv)));
   }
-  fun prop_write_0 (serv: int,y: int,input: (x_0: server, x_1: key, x_2: int)): bool {
-    var x_0: server;
-    var x_1: key;
-    var x_2: int;
-    x_0 = (input).x_0;
-    x_1 = (input).x_1;
-    x_2 = (input).x_2;
-    return (((!((x_1 == y)) && (x_1 != y)) && (x_0 == serv)) && (((x_1 == y) && (x_1 != y)) && (x_0 == serv)));
+  fun prop_write_0 (serv: int,y: int,input: (dest: server, k: key, value: int)): bool {
+    var dest: server;
+    var k: key;
+    var value: int;
+    dest = (input).dest;
+    k = (input).k;
+    value = (input).value;
+    return (((!((k == y)) && (k != y)) && (dest == serv)) && (((k == y) && (k != y)) && (dest == serv)));
   }
-  fun prop_read_0 (serv: int,y: int,input: (x_0: server, x_1: key)): bool {
-    var x_0: server;
-    var x_1: key;
-    x_0 = (input).x_0;
-    x_1 = (input).x_1;
-    return (!((x_0 == serv)) && (x_0 == serv));
+  fun prop_read_0 (serv: int,y: int,input: (dest: server, k: key)): bool {
+    var dest: server;
+    var k: key;
+    dest = (input).dest;
+    k = (input).k;
+    return (!((dest == serv)) && (dest == serv));
   }
   fun world_init () {
     var elem_0: int;

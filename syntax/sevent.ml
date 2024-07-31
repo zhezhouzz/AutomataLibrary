@@ -63,7 +63,7 @@ let mk_top_sevent (op : string) (ty : Nt.t) =
   let argsty = List.map snd @@ Nt.get_record_types ty in
   let vs = vs_names (List.length argsty) in
   let vs = List.map (fun (x, ty) -> x #: ty) @@ List.combine vs argsty in
-  let vs = (__server_feild #: server_type) :: vs in
+  (* let vs = (__server_feild #: server_type) :: vs in *)
   normalize_name @@ EffEvent { op; vs; phi = mk_true }
 
 open Zzdatatype.Datatype

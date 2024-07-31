@@ -821,4 +821,16 @@ module MakeAutomata (C : CHARACTER) = struct
       res
     in
     aux r
+
+  let map_on_char_dfa (dfa : dfa) (f : C.t -> C.t) : dfa =
+    let next = concretelize_dfa_aux (fun x -> x) dfa in
+    let next =
+      StateMap.map
+        (fun m ->
+          CharMap.of_seq
+          @@ Seq.map (fun (char, s) -> (f char, s))
+          @@ CharMap.to_seq m)
+        next
+    in
+    { start = dfa.start; finals = dfa.finals; next = construct_next next }
 end

@@ -222,7 +222,9 @@ let mk_abstract_ctx es = List.fold_left mk_abstract_ctx_one emp es
 
 let eta_reduction_item (ctx : rexpr ctx) (e : Nt.t item) : rexpr ctx =
   match e with
-  | MTyDecl _ | MValDecl _ | MMethodPred _ | MAxiom _ | MTyDeclSub _ -> ctx
+  | MTyDecl _ | MEventDecl _ | MValDecl _ | MMethodPred _ | MAxiom _
+  | MTyDeclSub _ ->
+      ctx
   | MRegex { name; automata } -> (
       match automata with
       | RExpr r ->
@@ -243,6 +245,9 @@ let regspec_to_sfa m =
   let () = Pp.printf "\n@{<bold>Back To SFA:@}\n%s\n" (SFA.layout_dfa sfa) in
   { world; reg = sfa }
 
+let rename_regspec_by_event_ctx ctx { world; reg } =
+  { world; reg = SFA.rename_sevent ctx reg }
+
 let regspecs_to_sfas m = StrMap.map regspec_to_sfa m
 
 let machine_to_sfa (m : (Nt.t, Nt.t sevent) regex machine) =
@@ -259,3 +264,12 @@ let machine_to_sfa (m : (Nt.t, Nt.t sevent) regex machine) =
 
 let machines_to_sfas (machines : (Nt.t, Nt.t sevent) regex machine StrMap.t) =
   StrMap.map machine_to_sfa machines
+
+let mk_event_ctx items =
+  List.fold_left
+    (fun (tyctx, kindctx) e ->
+      match e with
+      | MEventDecl { ev; event_kind } ->
+          (add_to_right tyctx ev, add_to_right kindctx ev.x #: event_kind)
+      | _ -> (tyctx, kindctx))
+    (emp, emp) items

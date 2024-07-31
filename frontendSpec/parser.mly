@@ -7,7 +7,7 @@
 
 (* tokens *)
 (* keywords *)
-%token EOF TYPEDEF CONSTDEF SPECDEF MACHINEDEF ASSIGN FUNCDECL EVENTDECL LITDECL LET IN FUNCTION ALL
+%token EOF TYPEDEF CONSTDEF SPECDEF MACHINEDEF ASSIGN FUNCDECL EVENTDECL LITDECL LET IN FUNCTION ALL REQUEST RESPONSE
 (* arithmetic operators *)
 %token PLUS MINUS STAR DIV LT GT LE GE NEQ EQ
 (* logic operators *)
@@ -210,7 +210,8 @@ statement:
   | LITDECL id=IDENT ASSIGN p=prop {{y = MAxiom {name = id; prop = p.y}; loc = $startpos}}
   | FUNCDECL id=IDENT COLON nt=nt {{y = MValDecl (id #: (Some nt)); loc = $startpos}}
   | FUNCDECL id=STRING COLON nt=nt {{y = MValDecl (id #: (Some nt)); loc = $startpos}}
-  | EVENTDECL id=IDENT COLON nt=nt {{y = MValDecl (id #: (Some nt)); loc = $startpos}}
+  | REQUEST EVENTDECL id=IDENT COLON nt=nt {{y = MEventDecl {ev = (id #: (Some nt)); event_kind = Req}; loc = $startpos}}
+  | RESPONSE EVENTDECL id=IDENT COLON nt=nt {{y = MEventDecl {ev = (id #: (Some nt)); event_kind = Resp}; loc = $startpos}}
   | TYPEDEF id=IDENT ASSIGN c=constant {{y = MRegex {name = (id #: None); automata = RExpr (RConst c)}; loc = $startpos}}
   | CONSTDEF id=IDENT ASSIGN c=constant {{y = MRegex {name = (id #: None); automata = RExpr (RConst c)}; loc = $startpos}}
   | SPECDEF id=IDENT ASSIGN q=regex {{y = MRegex {name = (id #: None); automata = q.y}; loc = $startpos}}

@@ -39,6 +39,7 @@ let read_p_and_spec p_source_file spec_source_file output_file () =
   let _, code = struct_check emp code in
   let () = Printf.printf "%s\n" @@ layout_structure code in
   let abstract_ctx = Instantiate.mk_abstract_ctx code in
+  let event_tyctx, event_kindctx = Instantiate.mk_event_ctx code in
   let machines = Instantiate.eta_reduction_items emp code in
   let machines =
     StrMap.of_seq @@ List.to_seq
@@ -49,6 +50,7 @@ let read_p_and_spec p_source_file spec_source_file output_file () =
   in
   let sfa = StrMap.find "die" machines "prop" in
   let sfa = Instantiate.regspec_to_sfa sfa in
+  let sfa = Instantiate.rename_regspec_by_event_ctx event_tyctx sfa in
   let code = read_functional_p_file p_source_file () in
   let code = Ptypecheck.p_items_infer emp code in
   let code = Dequantified.file_register_events code sfa in

@@ -19,6 +19,10 @@ let item_mk_ctx (e : t option item) =
         List.map (fun c -> constructor_declaration_mk_ (retty, c)) type_decls
       in
       xs
+  | MEventDecl { ev; _ } ->
+      let ev = __force_typed __FILE__ __LINE__ ev in
+      let ev = ev.x #: (add_server_field_record_type ev.ty) in
+      [ ev ]
   | MValDecl x -> [ __force_typed __FILE__ __LINE__ x ]
   | MMethodPred mp -> [ __force_typed __FILE__ __LINE__ mp ]
   | MAxiom _ | MRegex _ | MTyDeclSub _ -> []
@@ -38,6 +42,11 @@ let item_check ctx (e : t option item) : t ctx * t item =
         List.map (fun c -> constructor_declaration_mk_ (retty, c)) type_decls
       in
       (add_to_rights ctx xs, res)
+  | MEventDecl { ev; event_kind } ->
+      let ev = __force_typed __FILE__ __LINE__ ev in
+      let ev = ev.x #: (add_server_field_record_type ev.ty) in
+      let res = MEventDecl { ev; event_kind } in
+      (add_to_right ctx ev, res)
   | MValDecl x ->
       let x = __force_typed __FILE__ __LINE__ x in
       let res = MValDecl x in
