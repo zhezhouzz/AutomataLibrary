@@ -9,11 +9,12 @@ machine Client {
   var final_states: set[int];
   var transitions: map[int, map[string, map[int, int]]];
   var world: map[int, map[int, int]];
+  var server_machines: seq[machine];
   var server_Domain: set[int];
   var key_Domain: set[int];
   var fuel: int;
   start state Init {
-    entry (input: (server_Domain: set[int], key_Domain: set[int])) {
+    entry (input: (server_machines: seq[machine], key_Domain: set[int])) {
       qtype_init(input);
       world_init();
       action_domain_init();
@@ -104,6 +105,8 @@ machine Client {
     };
     if (!(if_valid)) {
       world = tmp_world;
+    } else {
+      send server_machines[(input).dest], write, (dest = (input).dest, k = (input).k, value = (input).value);
     };
     return if_valid;
   }
@@ -127,6 +130,8 @@ machine Client {
     };
     if (!(if_valid)) {
       world = tmp_world;
+    } else {
+      send server_machines[(input).dest], read, (dest = (input).dest, k = (input).k);
     };
     return if_valid;
   }
@@ -234,8 +239,9 @@ machine Client {
       };
     };
   }
-  fun qtype_init (input: (server_Domain: set[int], key_Domain: set[int])) {
-    server_Domain = (input).server_Domain;
+  fun qtype_init (input: (server_machines: seq[machine], key_Domain: set[int])) {
+    server_machines = (input).server_machines;
+    server_Domain = mk_index_set((input).server_machines);
     key_Domain = (input).key_Domain;
     return ;
   }

@@ -63,9 +63,13 @@ let mk_world_init_function_decl (world : world) =
         let e2 = aux world_expr world in
         mk_p_seq e1 e2
     | WMap { qv; world; abstract_type } ->
-        mk_foreach_set
-          (qtype_domain_expr (abstract_type, qv.ty))
-          (fun value -> aux (mk_p_access (world_expr, value)) world)
+        let e1 = mk_p_assign (world_expr, mk_p_default world_expr.ty) in
+        let e2 =
+          mk_foreach_set
+            (qtype_domain_expr (abstract_type, qv.ty))
+            (fun value -> aux (mk_p_access (world_expr, value)) world)
+        in
+        mk_p_seq e1 e2
     (* let world_expr = mk_p_access (world_expr, mk_pid qv) in *)
     (* let e = aux world_expr world in *)
 

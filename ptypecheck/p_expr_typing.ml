@@ -124,6 +124,18 @@ and expr_check (ctx : t ctx) (expr : t option p_expr) (ty : t) :
       let ctx' = add_to_rights ctx [ key ] in
       let body = typed_expr_check ctx' body Nt.Ty_unit in
       (ForeachMap { key; map; body }) #: Nt.Ty_unit
+  | PSend { dest; event_name; payload }, _ ->
+      let _ = Nt._type_unify __FILE__ __LINE__ ty Nt.Ty_unit in
+      let dest = typed_expr_check ctx dest (mk_p_abstract_ty "server") in
+      let event_ty =
+        match get_opt ctx event_name with
+        | None -> _failatwith __FILE__ __LINE__ "die"
+        | Some ty -> ty
+      in
+      let payload =
+        typed_expr_check ctx payload (remove_server_field_record_type event_ty)
+      in
+      (PSend { dest; event_name; payload }) #: Nt.Ty_unit
   | PGoto name, _ ->
       let _ = Nt._type_unify __FILE__ __LINE__ ty Nt.Ty_unit in
       (PGoto name) #: Nt.Ty_unit
@@ -241,6 +253,17 @@ and expr_infer (ctx : t ctx) (expr : t option p_expr) : (t, t p_expr) typed =
       let ctx' = add_to_rights ctx [ key ] in
       let body = typed_expr_check ctx' body Nt.Ty_unit in
       (ForeachMap { key; map; body }) #: Nt.Ty_unit
+  | PSend { dest; event_name; payload } ->
+      let dest = typed_expr_check ctx dest (mk_p_abstract_ty "server") in
+      let event_ty =
+        match get_opt ctx event_name with
+        | None -> _failatwith __FILE__ __LINE__ "die"
+        | Some ty -> ty
+      in
+      let payload =
+        typed_expr_check ctx payload (remove_server_field_record_type event_ty)
+      in
+      (PSend { dest; event_name; payload }) #: Nt.Ty_unit
   | PGoto name -> (PGoto name) #: Nt.Ty_unit
   | PBreak -> PBreak #: Nt.Ty_unit
   | PReturn e ->

@@ -1,0 +1,9 @@
+<!-- P Project file for the Client Server example -->
+<Project>
+<ProjectName>Template</ProjectName>
+<InputFiles>
+	<PFile>./PSrc/</PFile>
+	<PFile>./PServer/</PFile>
+</InputFiles>
+<OutputDir>./PGenerated/</OutputDir>
+</Project>

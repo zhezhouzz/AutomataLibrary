@@ -30,3 +30,11 @@ let add_server_field_record_type = function
   | Nt.Ty_record l ->
       Nt.Ty_record ((default_serv_field.x, default_serv_field.ty) :: l)
   | _ -> Sugar._failatwith __FILE__ __LINE__ "die"
+
+let remove_server_field_record_type = function
+  | Nt.Ty_record l ->
+      Nt.Ty_record
+        (List.filter
+           (fun (x, _) -> not (String.equal x default_serv_field.x))
+           l)
+  | _ -> Sugar._failatwith __FILE__ __LINE__ "die"

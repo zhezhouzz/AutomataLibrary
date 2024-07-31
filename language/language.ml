@@ -111,6 +111,7 @@ module SFA = struct
     let sfa =
       { start = dfa.start; finals = dfa.finals; next = construct_next next }
     in
+    (* let () = Pp.printf "\n@{<bold>before normalize:@}\n%s\n" (layout_dfa sfa) in *)
     normalize_dfa sfa
 
   (* open Zzdatatype.Datatype *)

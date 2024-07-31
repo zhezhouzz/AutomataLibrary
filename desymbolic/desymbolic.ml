@@ -159,7 +159,7 @@ let mk_backward_mapping_aux { local_features; _ } dts (op, ids) =
   let vs, _ = StrMap.find "die" local_features op in
   let local_m = StrMap.find "die" dts op in
   let props = List.map (IntMap.find "die" local_m) ids in
-  EffEvent { op; vs; phi = And props }
+  EffEvent { op; vs; phi = Or props }
 
 let mk_backward_mapping head dts es =
   let m =

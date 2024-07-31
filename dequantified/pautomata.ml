@@ -226,19 +226,21 @@ let mk_validate_function world op size =
   let mapping = "m" #: (mk_p_map_ty Nt.Ty_int Nt.Ty_int) in
   let input = input_name #: op.ty in
   let prepare = mk_p_assign (mk_pid if_valid, mk_p_bool false) in
-  let mk_one prop_id =
+  (* let e = mk_foreach_map (mk_pid mapping) (fun action_id) *)
+  let mk_one i s prop_id =
     let prop_func = (prop_func_name (op.x, prop_id)) #: Nt.Ty_unit in
     let condition = mk_p_app prop_func (List.map mk_pid (qvs @ [ input ])) in
-    let s = mk_p_access (mk_pid mapping, mk_p_int prop_id) in
-    let tbranch1 = mk_p_assign (mk_pid next_state, s) in
-    let tbranch2 = mk_p_assign (mk_pid if_valid, mk_p_bool true) in
-    mk_p_it condition (mk_p_seq tbranch1 tbranch2)
+    let tbranch = mk_return @@ mk_p_tuple [ mk_p_bool true; s ] in
+    mk_p_it (mk_p_eq (mk_pid i) (mk_p_int prop_id)) @@ mk_p_it condition tbranch
   in
-  let es = List.init size mk_one in
+  let e =
+    mk_foreach_map (mk_pid mapping) (fun i s ->
+        mk_p_seqs_ @@ List.init size (mk_one i s))
+  in
   let body =
     mk_return (mk_p_tuple (List.map mk_pid [ if_valid; next_state ]))
   in
-  let body = mk_p_seqs (prepare :: es) body in
+  let body = mk_p_seqs [ prepare; e ] body in
   ( (validate_function_name op.x) #: Nt.Ty_unit,
     mk_p_function_decl (qvs @ [ mapping; input ]) [ next_state; if_valid ] body
   )
@@ -247,6 +249,24 @@ let mk_validate_function world op size =
 
 let next_world_function op = spf "next_world_%s" op
 let next_world_function_decl op = (next_world_function op.x) #: Nt.Ty_unit
+
+let mk_send op event =
+  let server_id = (mk_field event default_serv_field.x).x #: Nt.Ty_int in
+  let dest = mk_p_access (mk_pid server_machines_decl, server_id) in
+  (* let l = *)
+  (*   match remove_server_field_record_type op.ty with *)
+  (*   | Nt.Ty_record l -> l *)
+  (*   | _ -> _failatwith __FILE__ __LINE__ "die" *)
+  (* in *)
+  let l =
+    match op.ty with
+    | Nt.Ty_record l -> l
+    | _ -> _failatwith __FILE__ __LINE__ "die"
+  in
+  let payload =
+    mk_p_record @@ List.map (fun (name, _) -> (name, mk_field event name)) l
+  in
+  mk_p_send dest op.x payload
 
 let mk_next_world_function world op =
   let qvs = get_qvs_from_world world in
@@ -279,9 +299,10 @@ let mk_next_world_function world op =
   in
   let loop = world_iter mk_one world in
   let body =
-    mk_p_it
+    mk_p_ite
       (mk_p_not (mk_pid if_valid))
       (mk_p_assign (world_expr world, tmp_world_expr world))
+      (Some (mk_send op (mk_pid input)))
   in
   let last = mk_return (mk_pid if_valid) in
   let body = mk_p_seqs (prepares @ [ loop; body ]) last in
@@ -468,8 +489,7 @@ let init_state_name = "Init"
 
 let init_state_function_decl ctx =
   let qtypes = List.map (fun x -> (mk_p_abstract_ty x.x, x.ty)) ctx in
-  let vs = List.map (fun qty -> qtype_domain_declear qty) qtypes in
-  let input = "input" #: (mk_p_record_ty vs) in
+  let _, input = mk_qtype_init_input qtypes in
   let e = mk_p_app qtype_init_function_decl [ mk_pid input ] in
   let mk f = mk_p_app f [] in
   let functions =

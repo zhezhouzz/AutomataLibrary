@@ -7,6 +7,8 @@ let rec layout_pnt t =
   let rec aux = function
     | Ty_constructor (name, [ ty ]) when String.equal name "set" ->
         spf "set[%s]" (aux ty)
+    | Ty_constructor (name, [ ty ]) when String.equal name "seq" ->
+        spf "seq[%s]" (aux ty)
     | Ty_constructor (name, [ ty ]) when String.equal name "ref" -> aux ty
     | Ty_constructor (name, [ ty1; ty2 ]) when String.equal name "map" ->
         spf "map[%s, %s]" (aux ty1) (aux ty2)
@@ -66,6 +68,9 @@ let rec layout_p_expr n = function
   | PRecord l -> (
       match l with
       | [] -> _failatwith __FILE__ __LINE__ "die"
+      | [ (name, _) ] when String.equal name "0" ->
+          _failatwith __FILE__ __LINE__ "die"
+      | [ (a, b) ] -> spf "(%s = %s,)" a (layout_typed_p_expr 0 b)
       | (name, _) :: _ when String.equal name "0" ->
           spf "(%s)"
             (List.split_by_comma
@@ -90,6 +95,11 @@ let rec layout_p_expr n = function
   | PSeq { rhs; body } ->
       let rhs = layout_typed_p_expr n rhs in
       spf "%s;\n%s" rhs (mk_indent n @@ layout_typed_p_expr n body)
+  | PSend { dest; event_name; payload } ->
+      spf "send %s, %s, %s"
+        (layout_typed_p_expr 0 dest)
+        event_name
+        (layout_typed_p_expr 0 payload)
   | PReturn { x = PConst PHalt; _ } -> spf "raise halt"
   | PReturn e -> spf "return %s" (layout_typed_p_expr n e)
   | PGoto state -> spf "goto %s" state

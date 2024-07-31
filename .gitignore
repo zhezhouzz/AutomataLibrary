@@ -1,4 +1,6 @@
-data/output/PGenerated/*
+*client.p
+*PCheckerOutput*
+*PGenerated*
 *.dot
 *.annot
 *.cmo

@@ -20,6 +20,7 @@ let p_infix_operator =
 
 let mk_p_abstract_ty name = Nt.Ty_constructor (name, [])
 let mk_p_set_ty ty = Nt.Ty_constructor ("set", [ ty ])
+let mk_p_seq_ty ty = Nt.Ty_constructor ("seq", [ ty ])
 let mk_p_map_ty ty1 ty2 = Nt.Ty_constructor ("map", [ ty1; ty2 ])
 let mk_p_ref_ty ty = Nt.Ty_constructor ("ref", [ ty ])
 let mk_p_record_ty vs = Nt.Ty_record (List.map (fun x -> (x.x, x.ty)) vs)
@@ -73,6 +74,11 @@ type 't p_expr =
       tbranch : ('t, 't p_expr) typed;
       fbranch : ('t, 't p_expr) typed option;
     }
+  | PSend of {
+      dest : ('t, 't p_expr) typed;
+      event_name : string;
+      payload : ('t, 't p_expr) typed;
+    }
   | PGoto of string
   | PBreak
   | PReturn of ('t, 't p_expr) typed
@@ -100,6 +106,9 @@ let mk_field record field =
     | _ -> _failatwith __FILE__ __LINE__ "die"
   in
   (PField { record; field }) #: ty
+
+let mk_p_send dest event_name payload =
+  (PSend { dest; event_name; payload }) #: Nt.unit_ty
 
 (** TODO: record type and tuple type...*)
 let mk_depair (record : (Nt.t, Nt.t p_expr) typed) =
@@ -159,8 +168,16 @@ let mk_p_choose pexpr =
       mk_p_app pfunc [ pexpr ]
   | _ -> _failatwith __FILE__ __LINE__ "die"
 
+open Zzdatatype.Datatype
+
 let mk_p_seq rhs body = (PSeq { rhs; body }) #: body.ty
 let mk_p_seqs es e = List.fold_right mk_p_seq es e
+
+let mk_p_seqs_ es =
+  match List.last_destruct_opt es with
+  | None -> _failatwith __FILE__ __LINE__ "die"
+  | Some (es, e) -> mk_p_seqs es e
+
 let mk_p_assign (lvalue, rvalue) = (PAssign { lvalue; rvalue }) #: Nt.Ty_unit
 
 let mk_p_vassign (lvalue, rvalue) =
@@ -193,6 +210,14 @@ let mk_p_access (container, index) =
             (spf "%s != %s" (Nt.layout t1) (Nt.layout index.ty))
     | Nt.Ty_constructor ("set", [ t2 ]) ->
         if Nt.eq Nt.Ty_int index.ty then t2
+        else
+          _failatwith __FILE__ __LINE__
+            (spf "%s != %s" (Nt.layout Nt.Ty_int) (Nt.layout index.ty))
+    | Nt.Ty_constructor ("seq", [ t2 ]) ->
+        (* HACK: server type = int *)
+        if
+          Nt.eq Nt.Ty_int index.ty || Nt.eq (mk_p_abstract_ty "server") index.ty
+        then t2
         else
           _failatwith __FILE__ __LINE__
             (spf "%s != %s" (Nt.layout Nt.Ty_int) (Nt.layout index.ty))

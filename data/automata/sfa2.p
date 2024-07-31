@@ -4,23 +4,23 @@ val "!=" : 'a -> 'a -> bool;
 type server <: int;
 type key <: int;
 
-request event write : <k : key; value: int>;
-request event read : <k : key >;
+request event writeReq : <k : key; value: int>;
+request event readReq : <k : key >;
 
 machine w1 (s: server) (y: key) =
    <[function
-     | write -> k == y
+     | writeReq -> k == y
      | all -> dest == s]>;
 
 machine w2 (s: server) (y: key) =
    <[function
-     | write -> k != y
+     | writeReq -> k != y
      | all -> dest == s]>;
 
 machine prop =
    forall (serv : server), forall (y: key),
-ctx [| read write |]
-((w1 serv y) ~ (rep 3 .) ~ (w2 serv y)*);
+ctx [| readReq writeReq |]
+   (.* ~ (w1 serv y) ~ .*);
 
 const serverType = [|1; 2|];
 const valueType = [|1; 2; 3|];
