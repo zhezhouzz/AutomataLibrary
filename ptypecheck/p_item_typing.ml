@@ -24,6 +24,8 @@ let p_items_infer (ctx : t ctx) l =
   let _, l =
     List.fold_left
       (fun (ctx, fs) -> function
+        | PTypeDecl x -> (ctx, fs @ [ PTypeDecl x ])
+        | PEventDecl x -> (ctx, fs @ [ PEventDecl x ])
         | PPrimFuncDecl fname ->
             (ctx, fs @ [ PPrimFuncDecl (__force_typed __FILE__ __LINE__ fname) ])
         | PGlobalFunc (fname, f) ->

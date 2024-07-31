@@ -17,10 +17,10 @@ machine w2 (s: server) (y: key) =
      | write -> k != y
      | all -> dest == s]>;
 
-machine prop (n: int) =
+machine prop =
    forall (serv : server), forall (y: key),
 ctx [| read write |]
-((w1 serv y) ~ (rep n .) ~ (w2 serv y)*);
+((w1 serv y) ~ (rep 3 .) ~ (w2 serv y)*);
 
 const serverType = [|1; 2|];
 const valueType = [|1; 2; 3|];
@@ -28,4 +28,4 @@ const valueType = [|1; 2; 3|];
 machine client =
    let server = serverType in
    let key = valueType in
-   prop 3
+   prop

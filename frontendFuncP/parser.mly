@@ -150,6 +150,8 @@ func_decl:
   {{y = {params; local_vars; body = mk_return body.y}; loc = $startpos}}
 | params=typed_vars ASSIGN body=expr
   {{y = {params; local_vars = []; body = mk_return body.y}; loc = $startpos}}
+| LPAR RPAR ASSIGN body=expr
+  {{y = {params = []; local_vars = []; body = mk_return body.y}; loc = $startpos}}
 ;
 
 state_label:
@@ -192,14 +194,19 @@ state_list:
 | c1=state {[c1.y]}
 ;
 
+state_list_bracket:
+| LBRACKET cs=state_list RBRACKET {cs}
+| LBRACKET RBRACKET {[]}
+;
+
 machine:
-| MACHINEDEF name=IDENT LOCAL local_vars=typed_vars FUNC local_funcs=named_func_list LBRACKET states=state_list RBRACKET
+| MACHINEDEF name=IDENT LOCAL local_vars=typed_vars FUNC local_funcs=named_func_list states=state_list_bracket
   {{y = {name; local_vars; local_funcs; states}; loc = $startpos}}
-| MACHINEDEF name=IDENT LOCAL local_vars=typed_vars LBRACKET states=state_list RBRACKET
+| MACHINEDEF name=IDENT LOCAL local_vars=typed_vars states=state_list_bracket
   {{y = {name; local_vars; local_funcs = []; states}; loc = $startpos}}
-| MACHINEDEF name=IDENT FUNC local_funcs=named_func_list LBRACKET states=state_list RBRACKET
+| MACHINEDEF name=IDENT FUNC local_funcs=named_func_list states=state_list_bracket
   {{y = {name; local_vars = []; local_funcs; states}; loc = $startpos}}
-| MACHINEDEF name=IDENT LBRACKET states=state_list RBRACKET
+| MACHINEDEF name=IDENT states=state_list_bracket
   {{y = {name; local_vars = []; local_funcs = []; states}; loc = $startpos}}
 ;
 

@@ -158,6 +158,29 @@ let regex_expr_to_machine_opt (r : rexpr) :
   in
   aux [] r
 
+let regex_expr_to_regspec_opt ctx (r : rexpr) =
+  let rec aux r =
+    (* let () = Printf.printf "To: %s\n" (layout_raw_regex (RExpr r)) in *)
+    (* let () = Printf.printf "to: %s\n" @@ layout_symbolic_regex (RExpr r) in *)
+    match r with
+    | QFRegex { qv; body } -> (
+        match qv.ty with
+        | RForall abstract_type ->
+            let* ty = get_opt ctx (Nt.layout abstract_type) in
+            let* world, r = aux (RRegex body) in
+            Some (WMap { qv = qv.x #: ty; abstract_type; world }, r)
+        | RExists abstract_type ->
+            let* ty = get_opt ctx (Nt.layout abstract_type) in
+            let* world, r = aux (RRegex body) in
+            Some (WSingle { qv = qv.x #: ty; abstract_type; world }, r)
+        | _ -> None)
+    | RRegex (RExpr r) -> aux r
+    | RRegex r -> Some (WState, r)
+    | _ -> None
+  in
+  let* world, reg = aux r in
+  Some { world; reg }
+
 (* let eta_reduction_to_constant (binding : Nt.t inst ctx) = function *)
 (*   | RVar name -> ( *)
 (*       match get_opt binding name.x with *)
@@ -190,6 +213,13 @@ let layout_machine_ f { binding; reg } =
 let layout_symbolic_machine m = layout_machine_ layout_symbolic_regex m
 let layout_sfa_machine m = layout_machine_ SFA.layout_dfa m
 
+let mk_abstract_ctx_one ctx (e : Nt.t item) =
+  match e with
+  | MTyDeclSub { type_name; super_ty } -> add_to_right ctx type_name #: super_ty
+  | _ -> ctx
+
+let mk_abstract_ctx es = List.fold_left mk_abstract_ctx_one emp es
+
 let eta_reduction_item (ctx : rexpr ctx) (e : Nt.t item) : rexpr ctx =
   match e with
   | MTyDecl _ | MValDecl _ | MMethodPred _ | MAxiom _ | MTyDeclSub _ -> ctx
@@ -203,20 +233,29 @@ let eta_reduction_item (ctx : rexpr ctx) (e : Nt.t item) : rexpr ctx =
 let eta_reduction_items (ctx : rexpr ctx) (es : Nt.t item list) : rexpr ctx =
   List.fold_left (fun ctx e -> eta_reduction_item ctx e) ctx es
 
-let machines_to_fa_machines
-    (machines : (Nt.t, Nt.t sevent) regex machine StrMap.t) =
-  StrMap.map
-    (fun (m : (Nt.t, Nt.t sevent) regex machine) ->
-      let bmap, { binding; reg } =
-        Desymbolic.desymbolic_machine (fun _ -> true) m
-      in
-      (* let () = Printf.printf " zz?: %s\n" @@ layout_symbolic_regex reg in *)
-      let module DFA = DesymFA in
-      let fa = DFA.compile2dfa reg in
-      let () = Pp.printf "\n@{<bold>To DFA:@}\n%s\n" (DFA.layout_dfa fa) in
-      let sfa = SFA.from_desym_dfa bmap fa in
-      let () =
-        Pp.printf "\n@{<bold>Back To SFA:@}\n%s\n" (SFA.layout_dfa sfa)
-      in
-      { binding; reg = sfa })
-    machines
+let regspec_to_sfa m =
+  let bmap, { world; reg } = Desymbolic.desymbolic_regspec (fun _ -> true) m in
+  (* let () = Printf.printf " zz?: %s\n" @@ layout_symbolic_regex reg in *)
+  let module DFA = DesymFA in
+  let fa = DFA.compile2dfa reg in
+  let () = Pp.printf "\n@{<bold>To DFA:@}\n%s\n" (DFA.layout_dfa fa) in
+  let sfa = SFA.from_desym_dfa bmap fa in
+  let () = Pp.printf "\n@{<bold>Back To SFA:@}\n%s\n" (SFA.layout_dfa sfa) in
+  { world; reg = sfa }
+
+let regspecs_to_sfas m = StrMap.map regspec_to_sfa m
+
+let machine_to_sfa (m : (Nt.t, Nt.t sevent) regex machine) =
+  let bmap, { binding; reg } =
+    Desymbolic.desymbolic_machine (fun _ -> true) m
+  in
+  (* let () = Printf.printf " zz?: %s\n" @@ layout_symbolic_regex reg in *)
+  let module DFA = DesymFA in
+  let fa = DFA.compile2dfa reg in
+  let () = Pp.printf "\n@{<bold>To DFA:@}\n%s\n" (DFA.layout_dfa fa) in
+  let sfa = SFA.from_desym_dfa bmap fa in
+  let () = Pp.printf "\n@{<bold>Back To SFA:@}\n%s\n" (SFA.layout_dfa sfa) in
+  { binding; reg = sfa }
+
+let machines_to_sfas (machines : (Nt.t, Nt.t sevent) regex machine StrMap.t) =
+  StrMap.map machine_to_sfa machines

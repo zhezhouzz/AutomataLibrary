@@ -188,7 +188,7 @@ let desymbolic checker srl =
 (*   let backward_maping = mk_backward_mapping head (dts_to_backward_dts dts) in *)
 (*   (backward_maping, srl') *)
 
-let desymbolic_machine checker { binding; reg } =
+let desymbolic_reg checker reg =
   let () = Pp.printf "\n@{<bold>Input:@}\n%s\n" (layout_symbolic_regex reg) in
   let reg = desugar reg in
   let () =
@@ -199,7 +199,7 @@ let desymbolic_machine checker { binding; reg } =
     Pp.printf "\n@{<bold>After Delimit Context@}:\n%s\n"
       (layout_symbolic_regex reg)
   in
-  let bamp, q = desymbolic checker reg in
+  let bmap, q = desymbolic checker reg in
   let () =
     Pp.printf "\n@{<bold>After Desymbolic:@}\n%s\n" (layout_desym_regex q)
   in
@@ -207,4 +207,12 @@ let desymbolic_machine checker { binding; reg } =
   let () =
     Pp.printf "\n@{<bold>After Simplication:@}\n%s\n" (layout_desym_regex q)
   in
-  (bamp, { binding; reg = q })
+  (bmap, q)
+
+let desymbolic_machine checker { binding; reg } =
+  let bmap, reg = desymbolic_reg checker reg in
+  (bmap, { binding; reg })
+
+let desymbolic_regspec checker { world; reg } =
+  let bmap, reg = desymbolic_reg checker reg in
+  (bmap, { world; reg })

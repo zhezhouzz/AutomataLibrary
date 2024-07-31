@@ -6,6 +6,7 @@ include Prop
 include Sevent
 include Typectx
 include Regex
+include Pmachine
 
 (* include Qregex *)
 include Nfa

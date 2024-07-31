@@ -108,5 +108,8 @@ module SFA = struct
           @@ StateMap.to_seq m)
         next
     in
-    { start = dfa.start; finals = dfa.finals; next = construct_next next }
+    let sfa =
+      { start = dfa.start; finals = dfa.finals; next = construct_next next }
+    in
+    normalize_dfa sfa
 end

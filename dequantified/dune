@@ -4,6 +4,7 @@
  (wrapped true)
  (libraries language core)
  (modules
+   pprop
    qtype
    world
    dequantified

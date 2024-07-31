@@ -1,18 +1,11 @@
 val + : int -> int -> int 
-val > : int -> int -> bool 
+val > : int -> int -> bool
 
 machine Client
   local
-    (fuel: int ref) (keyDomain: int seq ref)
+    (fuel: int ref)
   func
-    plain randomEvent (actions: action seq) = ((1 + 3) > 4)
-    plain randomEvent2 (actions: action seq) = ((1 + 3) > 4) {
-  state Init {
-      entry (s: int) = fuel := s
-      listen writeResp on (s: int) = fuel := s + 1
-  }
-  state Loop {
-      entry (s: int) = fuel := s + 5
-      listen writeResp on (a: int) = (fuel := 1); (goto Loop)
-  }
+    plain randomEvent2 (actions: action set) = ((1 + 3) > 4)
+{
+
 }

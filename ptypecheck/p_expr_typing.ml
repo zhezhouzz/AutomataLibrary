@@ -49,7 +49,7 @@ and expr_check (ctx : t ctx) (expr : t option p_expr) (ty : t) :
           let index = typed_expr_check ctx index ty1 in
           let ty = Nt._type_unify __FILE__ __LINE__ ty2 ty in
           (PAccess { container; index }) #: ty
-      | Nt.Ty_constructor ("seq", [ ty2 ]) ->
+      | Nt.Ty_constructor ("set", [ ty2 ]) ->
           let index = typed_expr_check ctx index Nt.Ty_int in
           let ty = Nt._type_unify __FILE__ __LINE__ ty2 ty in
           (PAccess { container; index }) #: ty
@@ -100,31 +100,30 @@ and expr_check (ctx : t ctx) (expr : t option p_expr) (ty : t) :
       let rhs = typed_expr_check ctx rhs Nt.Ty_unit in
       let body = typed_expr_check ctx body ty in
       (PSeq { rhs; body }) #: ty
-  | ForeachSeq { elem; seq; body }, _ ->
+  | ForeachSet { elem; set; body }, _ ->
       let _ = Nt._type_unify __FILE__ __LINE__ ty Nt.Ty_unit in
-      let seq = typed_expr_infer ctx seq in
+      let set = typed_expr_infer ctx set in
       let elem_ty =
-        match seq.ty with
-        | Nt.Ty_constructor ("seq", [ ty ]) -> ty
-        | _ -> _failatwith __FILE__ __LINE__ "not a seq type"
+        match set.ty with
+        | Nt.Ty_constructor ("set", [ ty ]) -> ty
+        | _ -> _failatwith __FILE__ __LINE__ "not a set type"
       in
       let elem = elem.x #: elem_ty in
       let ctx' = add_to_right ctx elem in
       let body = typed_expr_check ctx' body Nt.Ty_unit in
-      (ForeachSeq { elem; seq; body }) #: Nt.Ty_unit
-  | ForeachMap { key; value; map; body }, _ ->
+      (ForeachSet { elem; set; body }) #: Nt.Ty_unit
+  | ForeachMap { key; map; body }, _ ->
       let _ = Nt._type_unify __FILE__ __LINE__ ty Nt.Ty_unit in
       let map = typed_expr_infer ctx map in
-      let key_ty, value_ty =
+      let key_ty, _ =
         match map.ty with
         | Nt.Ty_constructor ("map", [ ty1; ty2 ]) -> (ty1, ty2)
-        | _ -> _failatwith __FILE__ __LINE__ "not a seq type"
+        | _ -> _failatwith __FILE__ __LINE__ "not a map type"
       in
       let key = key.x #: key_ty in
-      let value = value.x #: value_ty in
-      let ctx' = add_to_rights ctx [ key; value ] in
+      let ctx' = add_to_rights ctx [ key ] in
       let body = typed_expr_check ctx' body Nt.Ty_unit in
-      (ForeachMap { key; value; map; body }) #: Nt.Ty_unit
+      (ForeachMap { key; map; body }) #: Nt.Ty_unit
   | PGoto name, _ ->
       let _ = Nt._type_unify __FILE__ __LINE__ ty Nt.Ty_unit in
       (PGoto name) #: Nt.Ty_unit
@@ -136,6 +135,18 @@ and expr_check (ctx : t ctx) (expr : t option p_expr) (ty : t) :
         | _ -> PReturn e
       in
       e' #: ty
+  | PBreak, _ ->
+      let _ = Nt._type_unify __FILE__ __LINE__ ty Nt.Ty_unit in
+      PBreak #: Nt.Ty_unit
+  | PIf { condition; tbranch; fbranch }, _ ->
+      let condition = typed_expr_check ctx condition Nt.Ty_bool in
+      let tbranch = typed_expr_check ctx tbranch Nt.Ty_unit in
+      let fbranch =
+        match fbranch with
+        | None -> None
+        | Some fbranch -> Some (typed_expr_check ctx fbranch Nt.Ty_unit)
+      in
+      (PIf { condition; tbranch; fbranch }) #: Nt.Ty_unit
   | _, _ -> _failatwith __FILE__ __LINE__ "expr type error"
 
 and expr_infer (ctx : t ctx) (expr : t option p_expr) : (t, t p_expr) typed =
@@ -162,7 +173,7 @@ and expr_infer (ctx : t ctx) (expr : t option p_expr) : (t, t p_expr) typed =
       | Nt.Ty_constructor ("map", [ ty1; ty2 ]) ->
           let index = typed_expr_check ctx index ty1 in
           (PAccess { container; index }) #: ty2
-      | Nt.Ty_constructor ("seq", [ ty2 ]) ->
+      | Nt.Ty_constructor ("set", [ ty2 ]) ->
           let index = typed_expr_check ctx index Nt.Ty_int in
           (PAccess { container; index }) #: ty2
       | _ -> _failatwith __FILE__ __LINE__ "die")
@@ -208,31 +219,32 @@ and expr_infer (ctx : t ctx) (expr : t option p_expr) : (t, t p_expr) typed =
       let rhs = typed_expr_check ctx rhs Nt.Ty_unit in
       let body = typed_expr_infer ctx body in
       (PSeq { rhs; body }) #: body.ty
-  | ForeachSeq { elem; seq; body } ->
-      let seq = typed_expr_infer ctx seq in
+  | ForeachSet { elem; set; body } ->
+      let set = typed_expr_infer ctx set in
       let elem_ty =
-        match seq.ty with
-        | Nt.Ty_constructor ("seq", [ ty ]) -> ty
-        | _ -> _failatwith __FILE__ __LINE__ "not a seq type"
+        match set.ty with
+        | Nt.Ty_constructor ("set", [ ty ]) -> ty
+        | _ -> _failatwith __FILE__ __LINE__ "not a set type"
       in
       let elem = elem.x #: elem_ty in
       let ctx' = add_to_right ctx elem in
       let body = typed_expr_check ctx' body Nt.Ty_unit in
-      (ForeachSeq { elem; seq; body }) #: Nt.Ty_unit
-  | ForeachMap { key; value; map; body } ->
+      (ForeachSet { elem; set; body }) #: Nt.Ty_unit
+  | ForeachMap { key; map; body } ->
       let map = typed_expr_infer ctx map in
-      let key_ty, value_ty =
+      let key_ty, _ =
         match map.ty with
         | Nt.Ty_constructor ("map", [ ty1; ty2 ]) -> (ty1, ty2)
-        | _ -> _failatwith __FILE__ __LINE__ "not a seq type"
+        | _ -> _failatwith __FILE__ __LINE__ "not a set type"
       in
       let key = key.x #: key_ty in
-      let value = value.x #: value_ty in
-      let ctx' = add_to_rights ctx [ key; value ] in
+      let ctx' = add_to_rights ctx [ key ] in
       let body = typed_expr_check ctx' body Nt.Ty_unit in
-      (ForeachMap { key; value; map; body }) #: Nt.Ty_unit
+      (ForeachMap { key; map; body }) #: Nt.Ty_unit
   | PGoto name -> (PGoto name) #: Nt.Ty_unit
+  | PBreak -> PBreak #: Nt.Ty_unit
   | PReturn e ->
       let e = typed_expr_infer ctx e in
       (PReturn e) #: e.ty
+  | PIf _ -> typed_expr_check ctx expr #: None Nt.Ty_unit
 (* | _ -> _failatwith __FILE__ __LINE__ "expr type error" *)

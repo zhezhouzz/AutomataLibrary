@@ -8,6 +8,7 @@ let infer_constant (c : p_const) =
   | PInt _ -> Ty_int
   | PBool _ -> Ty_bool
   | PRandomBool -> Ty_bool
+  | PDefault nt -> nt
   | PStr _ -> Ty_constructor ("string", [])
 (* | Tu l -> Ty_tuple (List.map infer_constant l) *)
 (* | PSeqLit l -> *)

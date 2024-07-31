@@ -3,21 +3,8 @@ open Zzdatatype.Datatype
 open Qtype
 
 let state_name = "state"
-
-type world =
-  | WState (* always int *)
-  | WSingle of {
-      (* e.g., exists (a: account <: int) *)
-      qv : (Nt.t, string) typed;
-      abstract_type : Nt.t;
-      world : world;
-    }
-  | WMap of {
-      (* e.g., forall (a: account <: int) *)
-      qv : (Nt.t, string) typed;
-      abstract_type : Nt.t;
-      world : world;
-    }
+let state_decl = state_name #: Nt.Ty_int
+let state_expr = mk_pid state_decl
 
 type qindex = int list
 type pexpr = (Nt.t, Nt.t p_expr) typed
@@ -28,7 +15,7 @@ let rec world_to_nt = function
   | WMap { qv; world; _ } -> mk_p_map_ty qv.ty (world_to_nt world)
 
 let rec get_qvs_from_world = function
-  | WState -> [ state_name #: Nt.Ty_int ]
+  | WState -> []
   | WSingle { qv; world; _ } -> qv :: get_qvs_from_world world
   | WMap { qv; world; _ } -> qv :: get_qvs_from_world world
 
@@ -39,6 +26,9 @@ let fresh_qv nt =
 let default_world_name = "world"
 let world_decl world = default_world_name #: (world_to_nt world)
 let world_expr world = mk_pid @@ world_decl world
+let default_tmp_world_name = "tmp_world"
+let tmp_world_decl world = default_tmp_world_name #: (world_to_nt world)
+let tmp_world_expr world = mk_pid @@ tmp_world_decl world
 
 let world_iter (f : pexpr StrMap.t -> pexpr) (world : world) : pexpr =
   let world_expr = world_expr world in
@@ -50,19 +40,18 @@ let world_iter (f : pexpr StrMap.t -> pexpr) (world : world) : pexpr =
         let m = StrMap.add qv.x value m in
         aux m world_expr world
     | WMap { qv; world; _ } ->
-        let key = qv in
-        let value = fresh_qv (world_to_nt world) in
-        let m = StrMap.add qv.x (mk_pid value) m in
-        let body = aux m (mk_pid value) world in
-        mk_foreach_map key value world_expr body
+        mk_foreach_map_with_key qv world_expr (fun value ->
+            let m = StrMap.add qv.x (mk_pid qv) m in
+            aux m value world)
   in
   aux StrMap.empty world_expr world
 
 let initial_state = 0
 let initial_state_expr = mk_p_int initial_state
-let world_init_function = "world_init_function"
+let world_init_function_name = "world_init"
+let world_init_function_decl = world_init_function_name #: Nt.Ty_unit
 
-let world_init_expr (world : world) =
+let mk_world_init_function_decl (world : world) =
   let rec aux world_expr (world : world) =
     match world with
     | WState -> mk_p_assign (world_expr, initial_state_expr)
@@ -74,22 +63,27 @@ let world_init_expr (world : world) =
         let e2 = aux world_expr world in
         mk_p_seq e1 e2
     | WMap { qv; world; abstract_type } ->
-        let world_expr = mk_p_access (world_expr, mk_pid qv) in
-        let e = aux world_expr world in
-        let e =
-          mk_foreach_seq qv (qtype_domain_expr (abstract_type, qv.ty)) e
-        in
-        e
+        mk_foreach_set
+          (qtype_domain_expr (abstract_type, qv.ty))
+          (fun value -> aux (mk_p_access (world_expr, value)) world)
+    (* let world_expr = mk_p_access (world_expr, mk_pid qv) in *)
+    (* let e = aux world_expr world in *)
+
+    (* let e = *)
+    (*   mk_foreach_set qv (qtype_domain_expr (abstract_type, qv.ty)) e *)
+    (* in *)
+    (* e *)
   in
+
   let body = aux (world_expr world) world in
-  (world_init_function #: Nt.Ty_unit, { params = []; local_vars = []; body })
+  (world_init_function_decl, mk_p_function_decl [] [] body)
 
 let machine_register_world { name; local_vars; local_funcs; states }
     (world : world) =
   {
     name;
     local_vars = world_decl world :: local_vars;
-    local_funcs = world_init_expr world :: local_funcs;
+    local_funcs = mk_world_init_function_decl world :: local_funcs;
     states;
   }
 

@@ -33,6 +33,46 @@ let read_p source_file () =
   let () = Printf.printf "%s\n" (layout_p_program code) in
   ()
 
+let read_p_and_spec p_source_file spec_source_file output_file () =
+  let code = read_source_file spec_source_file () in
+  let () = Printf.printf "%s\n" @@ layout_opt_structure code in
+  let _, code = struct_check emp code in
+  let () = Printf.printf "%s\n" @@ layout_structure code in
+  let abstract_ctx = Instantiate.mk_abstract_ctx code in
+  let machines = Instantiate.eta_reduction_items emp code in
+  let machines =
+    StrMap.of_seq @@ List.to_seq
+    @@ List.filter_map (fun x ->
+           let* m = Instantiate.regex_expr_to_regspec_opt abstract_ctx x.ty in
+           Some (x.x, m))
+    @@ ctx_to_list machines
+  in
+  let sfa = StrMap.find "die" machines "prop" in
+  let sfa = Instantiate.regspec_to_sfa sfa in
+  let code = read_functional_p_file p_source_file () in
+  let code = Ptypecheck.p_items_infer emp code in
+  let code = Dequantified.file_register_events code sfa in
+  let code = Dequantified.file_register_abstract_types code abstract_ctx in
+  let code =
+    map_on_p_machine
+      (fun m ->
+        Dequantified.machine_register_qtypes m (ctx_to_list abstract_ctx))
+      code
+  in
+  let code =
+    map_on_p_machine
+      (fun m -> Dequantified.machine_register_automata m abstract_ctx sfa)
+      code
+  in
+  let () =
+    Printf.fprintf
+      (Out_channel.create ~fail_if_exists:false ~append:false output_file)
+      "%s\n" (layout_p_program code)
+  in
+  (* let code = map_on_p_machine Dequantified.machine_register_world_test code in *)
+  (* let () = Printf.printf "%s\n" (layout_p_program code) in *)
+  ()
+
 (* let get_sfa_by_name code n = *)
 (*   let tmp = *)
 (*     List.filter_map *)
@@ -134,7 +174,7 @@ let read_sfa source_file () =
         @@ Instantiate.layout_symbolic_machine m)
       machines
   in
-  let machines = Instantiate.machines_to_fa_machines machines in
+  let machines = Instantiate.machines_to_sfas machines in
   (* let machine = StrMap.find "die" machines "client" in *)
   let () =
     StrMap.iter
@@ -157,6 +197,14 @@ let two_param message f =
       and source_file = anon ("source_code_file" %: regular_file) in
       f meta_config_file source_file)
 
+let three_param message f =
+  Command.basic ~summary:message
+    Command.Let_syntax.(
+      let%map_open file1 = anon ("file1" %: regular_file)
+      and file2 = anon ("file2" %: regular_file)
+      and file3 = anon ("file3" %: string) in
+      f file1 file2 file3)
+
 let one_param message f =
   Command.basic ~summary:message
     Command.Let_syntax.(
@@ -169,4 +217,5 @@ let test =
       ("read-automata", one_param "read_automata" read_automata);
       ("read-sfa", one_param "read_sfa" read_sfa);
       ("read-p", one_param "read_p" read_p);
+      ("read-p-sfa", three_param "read_p" read_p_and_spec);
     ]
