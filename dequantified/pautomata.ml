@@ -247,6 +247,7 @@ let mk_validate_function world op size =
 
 (** next world *)
 
+let source_field_decl = "source" #: (mk_p_abstract_ty "machine")
 let next_world_function op = spf "next_world_%s" op
 let next_world_function_decl op = (next_world_function op.x) #: Nt.Ty_unit
 
@@ -264,11 +265,13 @@ let mk_send op event =
     | _ -> _failatwith __FILE__ __LINE__ "die"
   in
   let payload =
-    mk_p_record @@ List.map (fun (name, _) -> (name, mk_field event name)) l
+    mk_p_record
+    @@ (source_field_decl.x, mk_p_this)
+       :: List.map (fun (name, _) -> (name, mk_field event name)) l
   in
   mk_p_send dest op.x payload
 
-let mk_next_world_function world op =
+let mk_next_world_function world (kind, op) =
   let qvs = get_qvs_from_world world in
   (* let op = "op" #: (mk_p_string_ty) in *)
   let res = "res" #: (Nt.mk_tuple [ Nt.Ty_bool; Nt.Ty_int ]) in
@@ -302,7 +305,7 @@ let mk_next_world_function world op =
     mk_p_ite
       (mk_p_not (mk_pid if_valid))
       (mk_p_assign (world_expr world, tmp_world_expr world))
-      (Some (mk_send op (mk_pid input)))
+      (match kind with Resp -> None | Req -> Some (mk_send op (mk_pid input)))
   in
   let last = mk_return (mk_pid if_valid) in
   let body = mk_p_seqs (prepares @ [ loop; body ]) last in
@@ -376,32 +379,8 @@ let mk_random_event_function_decl op =
 
 (** mk_action *)
 
-let do_action_function = "do_action"
-let do_action_function_decl = do_action_function #: Nt.Ty_unit
-
-let mk_do_action_function_decl ops =
-  let action = "action" #: (mk_p_abstract_ty "string") in
-  let mk_f op =
-    let event = (spf "event_%s" op.x) #: op.ty in
-    let random_f = random_event_function_decl op in
-    let next_world_f = next_world_function_decl op in
-    mk_p_it
-      (mk_p_eq (mk_p_string op.x) (mk_pid action))
-      (mk_p_let event (mk_p_app random_f [])
-         (mk_p_it
-            (mk_p_app next_world_f [ mk_pid event ])
-            (mk_return (mk_p_bool true))))
-  in
-  let es = List.map mk_f ops in
-  let body =
-    mk_p_let action
-      (mk_random_from_seq (mk_p_app get_available_actions_function_decl []))
-      (mk_p_seqs es (mk_return (mk_p_bool false)))
-  in
-  (do_action_function_decl, mk_p_function_decl [] [] body)
-
-let machine_register_actions { name; local_vars; local_funcs; states } world
-    actions =
+let machine_register_actions { name; local_vars; local_funcs; states } kind_ctx
+    world actions =
   let actions_decls =
     StrMap.fold
       (fun op (vs, phis) l ->
@@ -413,20 +392,29 @@ let machine_register_actions { name; local_vars; local_funcs; states } world
     List.map (fun (op, (vs, _)) -> op #: (mk_p_record_ty vs))
     @@ StrMap.to_kv_list actions
   in
+  let ops =
+    List.map
+      (fun x ->
+        match get_opt kind_ctx x.x with
+        | None -> _failatwith __FILE__ __LINE__ "die"
+        | Some kind -> (kind, x))
+      ops
+  in
   let next_world_decls =
     List.fold_right (fun op l -> mk_next_world_function world op :: l) ops []
   in
   let random_event_function_decls =
-    List.fold_right (fun op l -> mk_random_event_function_decl op :: l) ops []
+    List.fold_right
+      (fun op l -> mk_random_event_function_decl (snd op) :: l)
+      ops []
   in
-  let do_action_function_decl = mk_do_action_function_decl ops in
+  (* let do_action_function_decl = mk_do_action_function_decl ops in *)
   {
     name;
     local_vars = action_domain_declar :: local_vars;
     local_funcs =
       [ action_domain_init actions; get_available_actions_function world ]
       @ random_event_function_decls @ actions_decls @ next_world_decls
-      @ [ do_action_function_decl ]
       @ local_funcs;
     states;
   }
@@ -471,17 +459,62 @@ let mk_check_final_function_decl world =
 (** Loop state *)
 let loop_state_name = "Loop"
 
-let loop_state_function_decl =
-  let e1 = mk_p_it (mk_p_app check_final_function_decl []) mk_p_halt in
-  let e2 = mk_p_app do_action_function_decl [] in
-  let body = mk_p_seqs [ e1; e2 ] (mk_p_goto loop_state_name) in
-  mk_p_function_decl [] [] body
+(** handle response *)
 
-let loop_state =
+let mk_handle_function op =
+  let event = "input" #: op.ty in
+  let next_world_f = next_world_function_decl op in
+  let body =
+    mk_p_it (mk_p_app next_world_f [ mk_pid event ]) (mk_p_goto loop_state_name)
+  in
+  let body = mk_p_seq body mk_p_error in
+  ((Listen op.x) #: Nt.Ty_unit, mk_p_function_decl [ event ] [] body)
+
+let loop_state_function_decl request_ops response_ops =
+  let e1 = mk_p_it (mk_p_app check_final_function_decl []) mk_p_halt in
+  let action = "action" #: (mk_p_abstract_ty "string") in
+  let mk_f op =
+    let event = (spf "event_%s" op.x) #: op.ty in
+    let random_f = random_event_function_decl op in
+    let next_world_f = next_world_function_decl op in
+    mk_p_it
+      (mk_p_eq (mk_p_string op.x) (mk_pid action))
+      (mk_p_let event (mk_p_app random_f [])
+         (mk_p_it
+            (mk_p_app next_world_f [ mk_pid event ])
+            (mk_p_goto loop_state_name)))
+  in
+  let es = List.map mk_f request_ops in
+  let condition =
+    mk_p_ors
+    @@ List.map
+         (fun op -> mk_p_eq (mk_p_string op.x) (mk_pid action))
+         response_ops
+  in
+  let last = mk_p_it (mk_p_not condition) (mk_p_goto loop_state_name) in
+  let body =
+    mk_p_let action
+      (mk_random_from_seq (mk_p_app get_available_actions_function_decl []))
+      (mk_p_seqs es last)
+  in
+  let body = mk_p_seq e1 body in
+  (Entry #: Nt.Ty_unit, mk_p_function_decl [] [] body)
+
+let loop_state kind_ctx ops =
+  let request_ops, response_ops =
+    List.partition
+      (fun x ->
+        match get_opt kind_ctx x.x with
+        | Some Req -> true
+        | Some Resp -> false
+        | None -> _failatwith __FILE__ __LINE__ "die")
+      ops
+  in
+  let es = List.map mk_handle_function response_ops in
   {
     name = loop_state_name;
     state_label = [];
-    state_body = [ (Entry #: Nt.Ty_unit, loop_state_function_decl) ];
+    state_body = loop_state_function_decl request_ops response_ops :: es;
   }
 
 (** Init state *)
@@ -512,12 +545,13 @@ let init_state ctx =
     state_body = [ (Entry #: Nt.Ty_unit, init_state_function_decl ctx) ];
   }
 
-let machine_register_states { name; local_vars; local_funcs; states } ctx =
+let machine_register_states { name; local_vars; local_funcs; states } kind_ctx
+    ctx ops =
   {
     name;
     local_vars;
     local_funcs;
-    states = init_state ctx :: loop_state :: states;
+    states = init_state ctx :: loop_state kind_ctx ops :: states;
   }
 
 let machine_register_finals { name; local_vars; local_funcs; states } world ss =
@@ -531,15 +565,19 @@ let machine_register_finals { name; local_vars; local_funcs; states } world ss =
     states;
   }
 
-let machine_register_automata m ctx { world; reg } =
+let machine_register_automata m kind_ctx ctx { world; reg } =
   (* let open SFA in *)
   let actions, mapping, d2s = concretlize_atuoamta reg in
   let m = machine_register_world m world in
   let m = machine_register_d2s m world d2s in
   let m = machine_register_transitions m mapping in
   let m = machine_register_finals m world reg.finals in
-  let m = machine_register_actions m world actions in
-  let m = machine_register_states m (ctx_to_list ctx) in
+  let m = machine_register_actions m kind_ctx world actions in
+  let ops =
+    List.map (fun (op, (vs, _)) -> op #: (mk_p_record_ty vs))
+    @@ StrMap.to_kv_list actions
+  in
+  let m = machine_register_states m kind_ctx (ctx_to_list ctx) ops in
   m
 
 let file_register_abstract_types items ctx =
@@ -550,13 +588,23 @@ let file_register_abstract_types items ctx =
   in
   l @ items
 
-let file_register_events items ({ reg; _ } : SFA.dfa regspec) =
-  let actions, _, _ = concretlize_atuoamta reg in
+let file_register_events items (kind_ctx, event_ctx) =
+  let l = ctx_to_list event_ctx in
   let l =
-    List.map (fun (op, (vs, _)) ->
-        let ty = mk_p_record_ty vs in
-        op #: ty)
-    @@ StrMap.to_kv_list actions
+    List.map
+      (fun x ->
+        match get_opt kind_ctx x.x with
+        | Some Req ->
+            let tys =
+              match x.ty with
+              | Nt.Ty_record l -> l
+              | _ -> _failatwith __FILE__ __LINE__ "die"
+            in
+            let tys = (source_field_decl.x, source_field_decl.ty) :: tys in
+            x.x #: (Nt.Ty_record tys)
+        | Some Resp -> x
+        | None -> _failatwith __FILE__ __LINE__ "die")
+      l
   in
   let l = List.map (fun x -> PEventDecl x) l in
   l @ items

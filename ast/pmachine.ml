@@ -12,6 +12,7 @@ type p_const =
   (* | PRecordLit of (string * p_const) list *)
   | PStr of string
   | PHalt
+  | PError
   | PRandomBool
 [@@deriving sexp]
 
@@ -273,7 +274,20 @@ let mk_p_in e1 e2 =
   mk_p_app "in" #: (Nt.construct_arr_tp ([ e1.ty; e2.ty ], Ty_bool)) [ e1; e2 ]
 
 let mk_p_halt = mk_return @@ ((PConst PHalt) #: Nt.Ty_unit)
+let mk_p_this = PThis #: Nt.Ty_unit
+let mk_p_error = mk_return @@ ((PConst PError) #: Nt.Ty_unit)
 let mk_p_goto name = (PGoto name) #: Nt.Ty_unit
+
+let mk_p_or e1 e2 =
+  mk_p_app
+    "||" #: (Nt.construct_arr_tp ([ Nt.Ty_bool; Nt.Ty_bool ], Nt.Ty_bool))
+    [ e1; e2 ]
+
+let mk_p_ors l =
+  match l with
+  | [] -> mk_p_bool false
+  | [ e ] -> e
+  | e :: es -> List.fold_left mk_p_or e es
 
 type 't p_func = {
   params : ('t, string) typed list;

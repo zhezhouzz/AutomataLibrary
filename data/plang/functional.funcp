@@ -1,6 +1,8 @@
 val + : int -> int -> int 
 val > : int -> int -> bool
 
+event error: unit
+
 machine Client
   local
     (fuel: int ref)

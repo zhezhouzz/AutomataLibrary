@@ -5,6 +5,7 @@ let infer_constant (c : p_const) =
   match c with
   | PUnit -> Ty_unit
   | PHalt -> Ty_unit
+  | PError -> Ty_unit
   | PInt _ -> Ty_int
   | PBool _ -> Ty_bool
   | PRandomBool -> Ty_bool

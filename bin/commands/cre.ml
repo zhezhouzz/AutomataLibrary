@@ -53,7 +53,9 @@ let read_p_and_spec p_source_file spec_source_file output_file () =
   let sfa = Instantiate.rename_regspec_by_event_ctx event_tyctx sfa in
   let code = read_functional_p_file p_source_file () in
   let code = Ptypecheck.p_items_infer emp code in
-  let code = Dequantified.file_register_events code sfa in
+  let code =
+    Dequantified.file_register_events code (event_kindctx, event_tyctx)
+  in
   let code = Dequantified.file_register_abstract_types code abstract_ctx in
   let code =
     map_on_p_machine
@@ -63,7 +65,8 @@ let read_p_and_spec p_source_file spec_source_file output_file () =
   in
   let code =
     map_on_p_machine
-      (fun m -> Dequantified.machine_register_automata m abstract_ctx sfa)
+      (fun m ->
+        Dequantified.machine_register_automata m event_kindctx abstract_ctx sfa)
       code
   in
   let () =

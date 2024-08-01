@@ -38,6 +38,7 @@ let layout_const = function
   | PInt i -> string_of_int i
   | PStr str -> spf "\"%s\"" str
   | PHalt -> "halt"
+  | PError -> "error"
   | PRandomBool -> "$"
   | PUnit -> ""
   | PDefault nt -> spf "default(%s)" (layout_pnt nt)
@@ -101,6 +102,7 @@ let rec layout_p_expr n = function
         event_name
         (layout_typed_p_expr 0 payload)
   | PReturn { x = PConst PHalt; _ } -> spf "raise halt"
+  | PReturn { x = PConst PError; _ } -> spf "raise error"
   | PReturn e -> spf "return %s" (layout_typed_p_expr n e)
   | PGoto state -> spf "goto %s" state
   | PBreak -> "break"
@@ -212,8 +214,12 @@ let layout_item = function
   | PPrimFuncDecl _ -> ""
   | PTypeDecl x ->
       mk_indent_semicolon_line 0 @@ spf "type %s = %s" x.x (layout_pnt x.ty)
-  | PEventDecl x ->
-      mk_indent_semicolon_line 0 @@ spf "event %s: %s" x.x (layout_pnt x.ty)
+  | PEventDecl x -> (
+      match x.ty with
+      | Nt.Ty_unit -> mk_indent_semicolon_line 0 @@ spf "event %s" x.x
+      | _ ->
+          mk_indent_semicolon_line 0 @@ spf "event %s: %s" x.x (layout_pnt x.ty)
+      )
   | PMachine m -> layout_p_machine 0 m
   | PGlobalFunc (name, f) -> layout_global_function 0 (name, f)
 

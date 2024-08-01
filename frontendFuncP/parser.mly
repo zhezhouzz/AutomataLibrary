@@ -211,6 +211,7 @@ machine:
 ;
 
 item:
+  | EVENTDECL id=IDENT COLON nt=nt {{y = PEventDecl (id #: (nt)); loc = $startpos}}
   | FUNCDECL id=biop COLON nt=nt {{y = PPrimFuncDecl (id #: (Some nt)); loc = $startpos}}
   | FUNCDECL id=IDENT COLON nt=nt {{y = PPrimFuncDecl (id #: (Some nt)); loc = $startpos}}
   | m=machine {{y = PMachine m.y; loc = $startpos}}
