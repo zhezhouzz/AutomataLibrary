@@ -83,7 +83,8 @@ let rec layout_p_expr n = function
                (fun (a, b) -> spf "%s = %s" a (layout_typed_p_expr 0 b))
                l))
   | PField { record; field } ->
-      spf "(%s).%s" (layout_typed_p_expr 0 record) field
+      (* spf "(%s).%s" (layout_typed_p_expr 0 record) field *)
+      spf "%s.%s" (layout_typed_p_expr 0 record) field
   | PAccess { container; index } ->
       spf "%s[%s]"
         (layout_typed_p_expr 0 container)
@@ -140,6 +141,9 @@ let rec layout_p_expr n = function
       in
       let last = mk_indent n "}" in
       spf "%s\n%s%s\n%s%s" head tbranch mid fbranch last
+  | PPrintf (format, es) ->
+      spf "print format(\"%s\", %s)" format
+        (List.split_by_comma (layout_typed_p_expr 0) es)
   | PLet _ -> _failatwith __FILE__ __LINE__ "unimp"
 
 and layout_typed_p_expr n { x; _ } = layout_p_expr n x

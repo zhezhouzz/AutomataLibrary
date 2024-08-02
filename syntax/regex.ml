@@ -255,7 +255,7 @@ let mk_sevents_from_ses ses =
     @@ List.map mk_sevent_from_se ses
   in
   let all_events = List.map (fun e -> Atomic e) all_events in
-  mk_landA (ses_to_regex or_events :: all_events)
+  mk_lorA (ses_to_regex or_events :: all_events)
 
 let simp_regex (eq : 'a -> 'a -> bool) (regex : ('t, 'a) regex) =
   let mk_multiatom ses =

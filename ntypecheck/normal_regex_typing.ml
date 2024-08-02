@@ -96,6 +96,10 @@ let bi_regex_check (f : string -> t -> 'b) (label_check : t ctx -> 'a -> 'b)
                 Printf.printf "RApp: %s : %s\n" (layout_sexp_regex f.x)
                   (Nt.layout f.ty)
               in
+              let () =
+                Printf.printf "%s doesn't have function type\n"
+                  (layout_sexp_regex func)
+              in
               _failatwith __FILE__ __LINE__ "wrong application"
         in
         let arg = bi_expr_check ctx arg in

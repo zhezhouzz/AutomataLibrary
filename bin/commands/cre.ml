@@ -15,7 +15,7 @@ let read_source_file source_file () =
   let postfix = List.last @@ String.split source_file ~on:'.' in
   match postfix with
   | "ml" -> read_ocaml_file source_file ()
-  | "p" -> FrontSpec.parse source_file
+  | "s" -> FrontSpec.parse source_file
   | _ -> failwith @@ spf "wrong file extension *.%s" postfix
 
 let read_functional_p_file source_file () =

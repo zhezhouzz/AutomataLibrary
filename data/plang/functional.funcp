@@ -1,13 +1,8 @@
-val + : int -> int -> int 
-val > : int -> int -> bool
-
 event error: unit
 
 machine Client
   local
     (fuel: int ref)
-  func
-    plain randomEvent2 (actions: action set) = ((1 + 3) > 4)
 {
 
 }

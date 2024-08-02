@@ -475,14 +475,16 @@ let loop_state_function_decl request_ops response_ops =
   let action = "action" #: (mk_p_abstract_ty "string") in
   let mk_f op =
     let event = (spf "event_%s" op.x) #: op.ty in
+    let print_event = mk_p_printf (spf "event %s: {0}" op.x) [ mk_pid event ] in
     let random_f = random_event_function_decl op in
     let next_world_f = next_world_function_decl op in
     mk_p_it
       (mk_p_eq (mk_p_string op.x) (mk_pid action))
       (mk_p_let event (mk_p_app random_f [])
-         (mk_p_it
-            (mk_p_app next_world_f [ mk_pid event ])
-            (mk_p_goto loop_state_name)))
+         (mk_p_seq print_event
+            (mk_p_it
+               (mk_p_app next_world_f [ mk_pid event ])
+               (mk_p_goto loop_state_name))))
   in
   let es = List.map mk_f request_ops in
   let condition =
@@ -492,10 +494,11 @@ let loop_state_function_decl request_ops response_ops =
          response_ops
   in
   let last = mk_p_it (mk_p_not condition) (mk_p_goto loop_state_name) in
+  let print_action = mk_p_printf "choose action: {0}" [ mk_pid action ] in
   let body =
     mk_p_let action
       (mk_random_from_seq (mk_p_app get_available_actions_function_decl []))
-      (mk_p_seqs es last)
+      (mk_p_seqs (print_action :: es) last)
   in
   let body = mk_p_seq e1 body in
   (Entry #: Nt.Ty_unit, mk_p_function_decl [] [] body)

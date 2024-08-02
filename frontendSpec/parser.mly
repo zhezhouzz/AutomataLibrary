@@ -227,5 +227,6 @@ statement_list:
 
 prog_eof:
   | s=statement_list ; EOF { s }
+  | s=statement_list SEMICOLON ; EOF { s }
 ;
 %%

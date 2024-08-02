@@ -83,10 +83,12 @@ type 't p_expr =
   | PGoto of string
   | PBreak
   | PReturn of ('t, 't p_expr) typed
+  | PPrintf of (string * ('t, 't p_expr) typed list)
 [@@deriving sexp]
 
 open Sugar
 
+let mk_p_printf format es = (PPrintf (format, es)) #: Nt.Ty_unit
 let mk_break = PBreak #: Nt.Ty_unit
 let mk_p_default nt = (PConst (PDefault nt)) #: nt
 let mk_pid id = (Pid id) #: id.ty

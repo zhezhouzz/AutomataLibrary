@@ -159,6 +159,10 @@ and expr_check (ctx : t ctx) (expr : t option p_expr) (ty : t) :
         | Some fbranch -> Some (typed_expr_check ctx fbranch Nt.Ty_unit)
       in
       (PIf { condition; tbranch; fbranch }) #: Nt.Ty_unit
+  | PPrintf (format, es), _ ->
+      let _ = Nt._type_unify __FILE__ __LINE__ ty Nt.Ty_unit in
+      let es = List.map (typed_expr_infer ctx) es in
+      (PPrintf (format, es)) #: Nt.Ty_unit
   | _, _ -> _failatwith __FILE__ __LINE__ "expr type error"
 
 and expr_infer (ctx : t ctx) (expr : t option p_expr) : (t, t p_expr) typed =
@@ -270,4 +274,7 @@ and expr_infer (ctx : t ctx) (expr : t option p_expr) : (t, t p_expr) typed =
       let e = typed_expr_infer ctx e in
       (PReturn e) #: e.ty
   | PIf _ -> typed_expr_check ctx expr #: None Nt.Ty_unit
+  | PPrintf (format, es) ->
+      let es = List.map (typed_expr_infer ctx) es in
+      (PPrintf (format, es)) #: Nt.Ty_unit
 (* | _ -> _failatwith __FILE__ __LINE__ "expr type error" *)
