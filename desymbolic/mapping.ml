@@ -19,6 +19,7 @@ module Predictable = struct
     Ast.(smart_add_to (Not (Lit lit #: Nt.bool_ty)) prop)
 
   let layout_lit = layout_lit
+  let layout_prop = layout_prop
 end
 
 module DT = Dtree.Dt.F (Predictable)

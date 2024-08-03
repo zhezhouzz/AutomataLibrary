@@ -32,4 +32,4 @@
  )
  (preprocess
   (pps ppx_optcomp ppx_compare ppx_sexp_conv))
- (libraries language_utils))
+ (libraries language_utils config))

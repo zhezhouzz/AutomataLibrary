@@ -9,6 +9,7 @@ module type Predictable = sig
   val mk_and : lit -> prop -> prop
   val mk_not_lit_and : lit -> prop -> prop
   val layout_lit : lit -> string
+  val layout_prop : prop -> string
 end
 
 module F (P : Predictable) = struct
@@ -23,6 +24,11 @@ module F (P : Predictable) = struct
   type t = T | F | Node of int * t * t
 
   let layout_label = function Pos -> "pos" | Neg -> "neg" | MayNeg -> "mayneg"
+
+  let rec layout = function
+    | T -> "⊤"
+    | F -> "⊥"
+    | Node (feature, l, r) -> spf "[%i](%s,%s)" feature (layout l) (layout r)
 
   let refine_dt_under_prop (sat_checker : prop -> bool) prop (features, dt) =
     let counter = ref 0 in
@@ -149,13 +155,6 @@ module F (P : Predictable) = struct
       (fun fv label ->
         Printf.printf "[%s] %s\n" (layout_label label) (layout_fv features fv))
       fvtab
-
-  (* let rec layout = function *)
-  (*   | T -> "⊤" *)
-  (*   | F -> "⊥" *)
-  (*   | Leaf feature -> F.layout feature *)
-  (*   | Node (feature, l, r) -> *)
-  (*       sprintf "[%s](%s,%s)" (F.layout feature) (layout l) (layout r) *)
 
   let pick_by_label fvtab lab =
     Hashtbl.fold

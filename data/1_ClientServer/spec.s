@@ -57,6 +57,11 @@
   | eWithDrawReq -> accountId == a && amount > am - (10: amount)
   ]>;
 
+  machine resp_wrong (a: account) =
+  <[function
+  | eWithDrawResp -> accountId == a && not status
+  ]>;
+
   machine req_any_amount (a: account) =
   <[function
   | eWithDrawReq -> accountId == a
@@ -74,10 +79,7 @@
   machine balance_safety (a: account) (am: amount) =
   (not (.* ~ (resp_balance a am) ~ .* ~ (req_bad_amount a am) ~ .*)) ;
 
-  machine balance_safety_violation (a: account) (am: amount) =
-  (.* ~ (resp_balance a am) ~ .* ~ (req_bad_amount a am)) ;
-
   machine prop =
   exists (s: server), exists (a1: account), exists (am1: amount), forall (i: id), forall (a: account), forall (am: amount),
   ctx [| eWithDrawReq eWithDrawResp |]
-  (unique_id i) && (liveness_id i) && (balance_safety_violation a1 am1)
+  (unique_id i) && (liveness_id i) && (balance_safety a1 am1)

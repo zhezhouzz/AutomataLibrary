@@ -236,7 +236,11 @@ let eta_reduction_items (ctx : rexpr ctx) (es : Nt.t item list) : rexpr ctx =
   List.fold_left (fun ctx e -> eta_reduction_item ctx e) ctx es
 
 let regspec_to_sfa m =
-  let bmap, { world; reg } = Desymbolic.desymbolic_regspec (fun _ -> true) m in
+  let bmap, { world; reg } =
+    Desymbolic.desymbolic_regspec
+      (fun (_, prop) -> Prover.check_sat_bool prop)
+      m
+  in
   (* let () = Printf.printf " zz?: %s\n" @@ layout_symbolic_regex reg in *)
   let module DFA = DesymFA in
   let fa = DFA.compile2dfa reg in

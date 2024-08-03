@@ -198,22 +198,37 @@ let read_sfa source_file () =
 let two_param message f =
   Command.basic ~summary:message
     Command.Let_syntax.(
-      let%map_open meta_config_file = anon ("meta_config_file" %: regular_file)
+      let%map_open config_file =
+        flag "config"
+          (optional_with_default Config.default_meta_config_path regular_file)
+          ~doc:"config file path"
+      and file1 = anon ("file1" %: regular_file)
       and source_file = anon ("source_code_file" %: regular_file) in
-      f meta_config_file source_file)
+      let () = Config.meta_config_path := config_file in
+      f file1 source_file)
 
 let three_param message f =
   Command.basic ~summary:message
     Command.Let_syntax.(
-      let%map_open file1 = anon ("file1" %: regular_file)
-      and file2 = anon ("file2" %: regular_file)
+      let%map_open config_file =
+        flag "config"
+          (optional_with_default Config.default_meta_config_path regular_file)
+          ~doc:"config file path"
+      and file1 = anon ("file2" %: regular_file)
+      and file2 = anon ("file3" %: string)
       and file3 = anon ("file3" %: string) in
+      let () = Config.meta_config_path := config_file in
       f file1 file2 file3)
 
 let one_param message f =
   Command.basic ~summary:message
     Command.Let_syntax.(
-      let%map_open source_file = anon ("source_code_file" %: regular_file) in
+      let%map_open config_file =
+        flag "config"
+          (optional_with_default Config.default_meta_config_path regular_file)
+          ~doc:"config file path"
+      and source_file = anon ("source_code_file" %: regular_file) in
+      let () = Config.meta_config_path := config_file in
       f source_file)
 
 let test =
