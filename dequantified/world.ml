@@ -1,10 +1,11 @@
 open Language
 open Zzdatatype.Datatype
 open Qtype
+open Pprop
 
-let state_name = "state"
-let state_decl = state_name #: Nt.Ty_int
+let state_decl = "state" #: Nt.Ty_int
 let state_expr = mk_pid state_decl
+let gprop_id_decl = "gprop_id" #: Nt.Ty_int
 
 type qindex = int list
 type pexpr = (Nt.t, Nt.t p_expr) typed
@@ -29,12 +30,46 @@ let world_expr world = mk_pid @@ world_decl world
 let default_tmp_world_name = "tmp_world"
 let tmp_world_decl world = default_tmp_world_name #: (world_to_nt world)
 let tmp_world_expr world = mk_pid @@ tmp_world_decl world
+let world_to_gprop_id_function_decl = "world_to_gprop_id" #: Nt.Ty_int
+
+let prop_func_declear world (op, i, vs, prop) =
+  let qvs = get_qvs_from_world world in
+  ( (prop_func_name (op, i)) #: Nt.Ty_bool,
+    _mk_p_prop_function_decl qvs (vs, prop) )
+
+let gprop_func_declear world (_, i, _, prop) =
+  let qvs = get_qvs_from_world world in
+  _mk_p_global_prop_function_decl i qvs prop
+
+let prop_func_decl (op, i) =
+  let vs =
+    match op.ty with
+    | Nt.Ty_unit -> []
+    | Nt.Ty_record l -> l
+    | _ -> _failatwith __FILE__ __LINE__ "die"
+  in
+  let vsty = List.map snd vs in
+  (prop_func_name (op.x, i)) #: (Nt.construct_arr_tp (vsty, Nt.Ty_bool))
+
+let mk_world_to_gprop_id_function_decl ids (world : world) =
+  let args = get_qvs_from_world world in
+  let aux id =
+    mk_p_it
+      (mk_p_app (global_prop_func_decl id) (List.map mk_pid args))
+      (mk_return @@ mk_p_int id)
+  in
+  let es = List.map aux ids in
+  let last = mk_return @@ mk_p_int (-1) in
+  let body = mk_p_seqs es last in
+  (world_to_gprop_id_function_decl, mk_p_function_decl args [] body)
 
 let world_iter (f : pexpr StrMap.t -> pexpr) (world : world) : pexpr =
   let world_expr = world_expr world in
   let rec aux m world_expr world =
     match world with
-    | WState -> f (StrMap.add state_name world_expr m)
+    | WState ->
+        let m = StrMap.add state_decl.x world_expr m in
+        f m
     | WSingle { qv; world; _ } ->
         let value, world_expr = mk_depair world_expr in
         let m = StrMap.add qv.x value m in
@@ -82,12 +117,15 @@ let mk_world_init_function_decl (world : world) =
   let body = aux (world_expr world) world in
   (world_init_function_decl, mk_p_function_decl [] [] body)
 
-let machine_register_world { name; local_vars; local_funcs; states }
+let machine_register_world { name; local_vars; local_funcs; states } ids
     (world : world) =
   {
     name;
     local_vars = world_decl world :: local_vars;
-    local_funcs = mk_world_init_function_decl world :: local_funcs;
+    local_funcs =
+      mk_world_to_gprop_id_function_decl ids world
+      :: mk_world_init_function_decl world
+      :: local_funcs;
     states;
   }
 
@@ -97,24 +135,24 @@ let mk_int_forall_world qv world =
 let mk_int_exists_world qv world =
   WSingle { qv = qv.x #: Nt.Ty_int; abstract_type = qv.ty; world }
 
-let _test_world1 = WState
+(* let _test_world1 = WState *)
 
-let _test_world2 =
-  mk_int_forall_world "a" #: (mk_p_abstract_ty "account") WState
+(* let _test_world2 = *)
+(*   mk_int_forall_world "a" #: (mk_p_abstract_ty "account") WState *)
 
-let _test_world3 =
-  mk_int_exists_world "a" #: (mk_p_abstract_ty "account") WState
+(* let _test_world3 = *)
+(*   mk_int_exists_world "a" #: (mk_p_abstract_ty "account") WState *)
 
-let _test_world4 =
-  mk_int_forall_world "s" #: (mk_p_abstract_ty "server") _test_world2
+(* let _test_world4 = *)
+(*   mk_int_forall_world "s" #: (mk_p_abstract_ty "server") _test_world2 *)
 
-let _test_world5 =
-  mk_int_forall_world "s" #: (mk_p_abstract_ty "server") _test_world3
+(* let _test_world5 = *)
+(*   mk_int_forall_world "s" #: (mk_p_abstract_ty "server") _test_world3 *)
 
-let _test_world6 =
-  mk_int_exists_world "s" #: (mk_p_abstract_ty "server") _test_world2
+(* let _test_world6 = *)
+(*   mk_int_exists_world "s" #: (mk_p_abstract_ty "server") _test_world2 *)
 
-let _test_world7 =
-  mk_int_exists_world "s" #: (mk_p_abstract_ty "server") _test_world3
+(* let _test_world7 = *)
+(*   mk_int_exists_world "s" #: (mk_p_abstract_ty "server") _test_world3 *)
 
-let machine_register_world_test m = machine_register_world m _test_world7
+(* let machine_register_world_test m = machine_register_world m _test_world7 *)

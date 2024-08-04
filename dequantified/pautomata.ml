@@ -10,23 +10,6 @@ let action_name_mapping_decl =
   action_name_mapping #: (mk_p_map_ty Ty_int mk_p_string_ty)
 
 let action_name_mapping_expr = mk_pid @@ action_name_mapping_decl
-let prop_func_name (op, i) = spf "prop_%s_%i" op i
-
-type pprop = string * int * (Nt.t, string) typed list * Nt.t prop
-
-let prop_func_declear world (op, i, vs, prop) =
-  let qvs = get_qvs_from_world world in
-  ( (prop_func_name (op, i)) #: Nt.Ty_bool,
-    mk_p_prop_function_decl qvs (vs, prop) )
-
-let prop_func_expr (op, i) =
-  let vs =
-    match op.ty with
-    | Nt.Ty_record l -> l
-    | _ -> _failatwith __FILE__ __LINE__ "die"
-  in
-  let vsty = List.map snd vs in
-  mk_pid (prop_func_name (op.x, i)) #: (Nt.construct_arr_tp (vsty, Nt.Ty_bool))
 
 let __force_effect_event = function
   | EffEvent { op; vs; phi } -> (op, vs, phi)
@@ -37,32 +20,59 @@ module D2S = DesymFA.CharMap
 
 let concretlize_atuoamta reg =
   let open SFA in
-  let mapping = concretelize_dfa_aux (fun x -> x) reg in
-  let ses =
-    List.of_seq @@ Seq.concat
-    @@ Seq.map (fun m -> Seq.map fst @@ CharMap.to_seq m)
-    @@ Seq.map snd @@ StateMap.to_seq mapping
+  let globals, regs =
+    List.split @@ List.mapi (fun i (global, reg) -> ((i, global), (i, reg))) reg
   in
-  let m =
+  (* let () = *)
+  (*   Printf.printf "globals\n%s\n" *)
+  (*     (List.split_by "\n" *)
+  (*        (fun (i, prop) -> spf "%i:%s;" i (layout_prop prop)) *)
+  (*        globals) *)
+  (* in *)
+  let finals =
+    IntMap.of_seq @@ List.to_seq
+    @@ List.map (fun (i, dfa) -> (i, dfa.finals)) regs
+  in
+  let mapping =
+    List.map (fun (i, reg) -> (i, concretelize_dfa_aux (fun x -> x) reg)) regs
+  in
+  let get_actions mapping =
+    let ses =
+      List.of_seq @@ Seq.concat
+      @@ Seq.map (fun m -> Seq.map fst @@ CharMap.to_seq m)
+      @@ Seq.map snd @@ StateMap.to_seq mapping
+    in
+    let m =
+      List.fold_left
+        (fun m se ->
+          match se with
+          | GuardEvent _ -> _failatwith __FILE__ __LINE__ "die"
+          | EffEvent { op; vs; phi } ->
+              StrMap.update op
+                (function
+                  | None -> Some (vs, [ phi ])
+                  | Some (vs, phis) -> Some (vs, phi :: phis))
+                m)
+        StrMap.empty ses
+    in
+    m
+  in
+  let ms =
     List.fold_left
-      (fun m se ->
-        match se with
-        | GuardEvent _ -> _failatwith __FILE__ __LINE__ "die"
-        | EffEvent { op; vs; phi } ->
-            StrMap.update op
-              (function
-                | None -> Some (vs, [ phi ])
-                | Some (vs, phis) -> Some (vs, phi :: phis))
-              m)
-      StrMap.empty ses
+      (fun m (_, mapping) ->
+        let m' = get_actions mapping in
+        StrMap.union (fun _ (_, l1) (vs, l2) -> Some (vs, l1 @ l2)) m m')
+      StrMap.empty mapping
   in
   let m =
     StrMap.map
       (fun (vs, l) ->
         (vs, List.slow_rm_dup (fun a b -> 0 == Stdlib.compare a b) l))
-      m
+      ms
   in
   let actions = m in
+  (* NOTE: also had global ones *)
+  let m = StrMap.add global_event_name ([], List.map snd globals) m in
   (* let event_typing_ctx = StrMap.map (fun (vs, _) -> mk_p_record_ty vs) m in *)
   let s2d, d2s =
     StrMap.fold
@@ -80,36 +90,62 @@ let concretlize_atuoamta reg =
         (s2d, d2s))
       m (S2D.empty, D2S.empty)
   in
-  let mapping =
-    StateMap.map
-      (fun m ->
-        D2S.of_seq
-        @@ Seq.map (fun (c, s) -> (CharMap.find c s2d, s))
-        @@ CharMap.to_seq m)
-      mapping
-  in
-  let mk_precise (m : state D2S.t) =
-    let l = List.of_seq @@ D2S.to_seq m in
-    let m =
-      List.fold_right
-        (fun ((op, i), state) ->
-          StrMap.update op (function
-            | None -> Some (IntMap.singleton i state)
-            | Some m' -> Some (IntMap.add i state m')))
-        l StrMap.empty
+  (* let () = *)
+  (*   Printf.printf "s2d\n%s\n" *)
+  (*     (List.split_by_comma layout_se *)
+  (*        (List.of_seq @@ Seq.map fst @@ S2D.to_seq s2d)) *)
+  (* in *)
+  let mk_mapping mapping =
+    let mapping =
+      StateMap.map
+        (fun m ->
+          D2S.of_seq
+          @@ Seq.map (fun (c, s) ->
+                 let () = Printf.printf "%s\n" (layout_se c) in
+                 (CharMap.find c s2d, s))
+          @@ CharMap.to_seq m)
+        mapping
     in
-    m
+    let mk_precise (m : state D2S.t) =
+      let l = List.of_seq @@ D2S.to_seq m in
+      let m =
+        List.fold_right
+          (fun ((op, i), state) ->
+            StrMap.update op (function
+              | None -> Some (IntMap.singleton i state)
+              | Some m' -> Some (IntMap.add i state m')))
+          l StrMap.empty
+      in
+      m
+    in
+    StateMap.map mk_precise mapping
   in
-  let mapping = StateMap.map mk_precise mapping in
-  (actions, mapping, d2s)
+  let mapping =
+    IntMap.of_seq @@ List.to_seq
+    @@ List.map
+         (fun (i, mapping) ->
+           let _, global_prop =
+             List.find "die" (fun (i', _) -> i == i') globals
+           in
+           let global_event =
+             EffEvent { op = global_event_name; vs = []; phi = global_prop }
+           in
+           let _, id = S2D.find global_event s2d in
+           (id, mk_mapping mapping))
+         mapping
+  in
+  (actions, mapping, finals, d2s)
 
 let transition_init_function_name = "transition_init_function"
 let transition_init_function_decl = transition_init_function_name #: Nt.Ty_unit
 let transition_name = "transitions"
 
 let transtion_type =
-  mk_p_map_ty Nt.Ty_int
-    (mk_p_map_ty mk_p_string_ty (mk_p_map_ty Nt.Ty_int Nt.Ty_int))
+  mk_p_map_ty Nt.Ty_int (* the global prop index *)
+    (mk_p_map_ty Nt.Ty_int (* the state *)
+       (mk_p_map_ty mk_p_string_ty (* the event name *)
+          (mk_p_map_ty Nt.Ty_int (* the prop index *)
+             Nt.Ty_int (* the next state *))))
 
 let transition_decl = transition_name #: transtion_type
 let transition_expr = mk_pid transition_decl
@@ -158,14 +194,16 @@ let init_p_str_map (m : (pexpr -> pexpr) StrMap.t) (expr : pexpr) =
 
 let mk_transition_init_function mapping =
   let mapping =
-    StateMap.map
-      (StrMap.map
-         (IntMap.map (fun i e -> mk_p_assign (e, mk_p_int (Int64.to_int i)))))
+    IntMap.map
+      (StateMap.map
+         (StrMap.map
+            (IntMap.map (fun i e -> mk_p_assign (e, mk_p_int (Int64.to_int i))))))
       mapping
   in
-  let mapping = StateMap.map (StrMap.map init_p_int_map) mapping in
-  let mapping = StateMap.map init_p_str_map mapping in
-  let body = init_p_int64_map mapping transition_expr in
+  let mapping = IntMap.map (StateMap.map (StrMap.map init_p_int_map)) mapping in
+  let mapping = IntMap.map (StateMap.map init_p_str_map) mapping in
+  let mapping = IntMap.map init_p_int64_map mapping in
+  let body = init_p_int_map mapping transition_expr in
   (transition_init_function_decl, mk_p_function_decl [] [] body)
 
 let machine_register_transitions { name; local_vars; local_funcs; states }
@@ -185,8 +223,19 @@ let machine_register_d2s { name; local_vars; local_funcs; states } world d2s =
         (op, i, vs, phi) :: l)
       d2s []
   in
+  let gpprops, pprops =
+    List.partition
+      (fun (op, _, _, _) -> String.equal op global_event_name)
+      pprops
+  in
   let pprop_decls = List.map (prop_func_declear world) pprops in
-  { name; local_vars; local_funcs = pprop_decls @ local_funcs; states }
+  let gpprop_decls = List.map (gprop_func_declear world) gpprops in
+  {
+    name;
+    local_vars;
+    local_funcs = gpprop_decls @ pprop_decls @ local_funcs;
+    states;
+  }
 
 (** predict an event under world *)
 (* let predict_under_world_function_name op = spf "predict_under_world_%s" op *)
@@ -200,7 +249,7 @@ let machine_register_d2s { name; local_vars; local_funcs; states } world d2s =
 (*   let input = input_name #: event_type in *)
 (*   let qvs = get_qvs_from_world world in *)
 (*   let mk_inner_expr m = *)
-(*     let state_expr = StrMap.find "die" m state_name in *)
+(*     let state_expr = StrMap.find "die" m state_decl.x in *)
 (*     let qvs = List.map (fun x -> StrMap.find "die" m x.x) qvs in *)
 (*     let transitions = mk_p_access (transition_expr, state_expr) in *)
 (*     let transitions = mk_p_access (transitions, mk_p_string op) in *)
@@ -271,7 +320,23 @@ let mk_send op event =
   in
   mk_p_send dest op.x payload
 
+let world_iter_with_transitions (f : pexpr StrMap.t -> pexpr -> pexpr)
+    (world : world) : pexpr =
+  world_iter
+    (fun m ->
+      let qvs = get_qvs_from_world world in
+      let qvs = List.map (fun qv -> StrMap.find "die" m qv.x) qvs in
+      let state = StrMap.find "die" m state_decl.x in
+      let mapping =
+        mk_p_access
+          (transition_expr, mk_p_app world_to_gprop_id_function_decl qvs)
+      in
+      let mapping = mk_p_access (mapping, state) in
+      f m mapping)
+    world
+
 let mk_next_world_function world (kind, op) =
+  let just_check_sat = "just_check_sat" #: Nt.Ty_bool in
   let qvs = get_qvs_from_world world in
   (* let op = "op" #: (mk_p_string_ty) in *)
   let res = "res" #: (Nt.mk_tuple [ Nt.Ty_bool; Nt.Ty_int ]) in
@@ -284,10 +349,9 @@ let mk_next_world_function world (kind, op) =
       mk_p_assign (tmp_world_expr world, world_expr world);
     ]
   in
-  let mk_one m =
+  let mk_one m mapping =
     let qvs = List.map (fun qv -> StrMap.find "die" m qv.x) qvs in
-    let state = StrMap.find "die" m state_name in
-    let mapping = mk_p_access (transition_expr, state) in
+    let state = StrMap.find "die" m state_decl.x in
     let mapping = mk_p_access (mapping, mk_p_string op.x) in
     let e11, e12 = mk_depair (mk_pid res) in
     let e2 =
@@ -300,7 +364,13 @@ let mk_next_world_function world (kind, op) =
     in
     body
   in
-  let loop = world_iter mk_one world in
+  let loop = world_iter_with_transitions mk_one world in
+  let e_just_check_sat =
+    mk_p_it (mk_pid just_check_sat)
+      (mk_p_seq
+         (mk_p_assign (world_expr world, tmp_world_expr world))
+         (mk_return (mk_pid if_valid)))
+  in
   let body =
     mk_p_ite
       (mk_p_not (mk_pid if_valid))
@@ -308,9 +378,11 @@ let mk_next_world_function world (kind, op) =
       (match kind with Resp -> None | Req -> Some (mk_send op (mk_pid input)))
   in
   let last = mk_return (mk_pid if_valid) in
-  let body = mk_p_seqs (prepares @ [ loop; body ]) last in
+  let body = mk_p_seqs (prepares @ [ loop; e_just_check_sat; body ]) last in
   ( (next_world_function op.x) #: Nt.Ty_unit,
-    mk_p_function_decl [ input ] [ tmp_world_decl world; if_valid ] body )
+    mk_p_function_decl [ just_check_sat; input ]
+      [ tmp_world_decl world; if_valid ]
+      body )
 
 let action_domain_name = "action_domain"
 let action_domain_declar = action_domain_name #: (mk_p_set_ty mk_p_string_ty)
@@ -337,16 +409,14 @@ let get_available_actions_function_decl =
 let get_available_actions_function world =
   let res = "res" #: (mk_p_set_ty mk_p_string_ty) in
   let prepares = [ mk_p_assign (mk_pid res, action_domain_expr) ] in
-  let mk_one m =
-    let state = StrMap.find "die" m state_name in
-    let mapping = mk_p_access (transition_expr, state) in
+  let mk_one _ mapping =
     let body =
       mk_p_assign
         (mk_pid res, mk_set_intersection (mk_pid res) @@ mk_p_map_keys mapping)
     in
     body
   in
-  let loop = world_iter mk_one world in
+  let loop = world_iter_with_transitions mk_one world in
   let last = mk_return (mk_pid res) in
   let body = mk_p_seqs (prepares @ [ loop ]) last in
   (get_available_actions_function_decl, mk_p_function_decl [] [ res ] body)
@@ -393,11 +463,13 @@ let machine_register_actions { name; local_vars; local_funcs; states } kind_ctx
     @@ StrMap.to_kv_list actions
   in
   let ops =
-    List.map
+    List.filter_map
       (fun x ->
-        match get_opt kind_ctx x.x with
-        | None -> _failatwith __FILE__ __LINE__ "die"
-        | Some kind -> (kind, x))
+        if String.equal x.x global_event_name then None
+        else
+          match get_opt kind_ctx x.x with
+          | None -> _failatwith __FILE__ __LINE__ "die"
+          | Some kind -> Some (kind, x))
       ops
   in
   let next_world_decls =
@@ -419,22 +491,30 @@ let machine_register_actions { name; local_vars; local_funcs; states } kind_ctx
     states;
   }
 
-let final_states_name = "final_states"
-let final_states_decl = final_states_name #: (mk_p_set_ty Nt.Ty_int)
-let final_states_expr = mk_pid final_states_decl
-let final_states_init_function_name = "final_states_init"
+let final_states_decl =
+  "final_states" #: (mk_p_map_ty Nt.Ty_int (mk_p_set_ty Nt.Ty_int))
 
-let final_states_init_function_decl =
-  final_states_init_function_name #: Nt.Ty_unit
+let final_states_expr = mk_pid final_states_decl
+let final_states_init_function_decl = "final_states_init" #: Nt.Ty_unit
 
 let mk_final_states_init_function_decl ss =
-  let ss = List.of_seq @@ StateSet.to_seq ss in
-  let es =
-    List.map
-      (fun s -> mk_p_add_set final_states_expr (mk_p_int (Int64.to_int s)))
+  let m =
+    IntMap.map
+      (fun ss final_states_expr ->
+        let ss = List.of_seq @@ StateSet.to_seq ss in
+        let e =
+          mk_p_assign (final_states_expr, mk_p_default final_states_expr.ty)
+        in
+        let es =
+          List.map
+            (fun s ->
+              mk_p_add_set final_states_expr (mk_p_int (Int64.to_int s)))
+            ss
+        in
+        mk_p_seqs_ (e :: es))
       ss
   in
-  let body = mk_p_seqs es mk_return_void in
+  let body = init_p_int_map m final_states_expr in
   (final_states_init_function_decl, mk_p_function_decl [] [] body)
 
 let check_final_function_name = "check_final"
@@ -445,9 +525,15 @@ let mk_check_final_function_decl world =
   let e =
     world_iter
       (fun m ->
-        let state = StrMap.find "die" m state_name in
+        let qvs = get_qvs_from_world world in
+        let qvs = List.map (fun qv -> StrMap.find "die" m qv.x) qvs in
+        let state = StrMap.find "die" m state_decl.x in
+        let final_states =
+          mk_p_access
+            (final_states_expr, mk_p_app world_to_gprop_id_function_decl qvs)
+        in
         mk_p_it
-          (mk_p_not (mk_p_in state final_states_expr))
+          (mk_p_not (mk_p_in state final_states))
           (mk_p_vassign (res, mk_p_bool false)))
       world
   in
@@ -465,7 +551,9 @@ let mk_handle_function op =
   let event = "input" #: op.ty in
   let next_world_f = next_world_function_decl op in
   let body =
-    mk_p_it (mk_p_app next_world_f [ mk_pid event ]) (mk_p_goto loop_state_name)
+    mk_p_it
+      (mk_p_app next_world_f [ mk_p_bool false; mk_pid event ])
+      (mk_p_goto loop_state_name)
   in
   let body = mk_p_seq body mk_p_error in
   ((Listen op.x) #: Nt.Ty_unit, mk_p_function_decl [ event ] [] body)
@@ -473,7 +561,7 @@ let mk_handle_function op =
 let loop_state_function_decl request_ops response_ops =
   let e1 = mk_p_it (mk_p_app check_final_function_decl []) mk_p_halt in
   let action = "action" #: (mk_p_abstract_ty "string") in
-  let mk_f op =
+  let mk_request_f op =
     let event = (spf "event_%s" op.x) #: op.ty in
     let print_event = mk_p_printf (spf "event %s: {0}" op.x) [ mk_pid event ] in
     let random_f = random_event_function_decl op in
@@ -483,22 +571,30 @@ let loop_state_function_decl request_ops response_ops =
       (mk_p_let event (mk_p_app random_f [])
          (mk_p_seq print_event
             (mk_p_it
-               (mk_p_app next_world_f [ mk_pid event ])
+               (mk_p_app next_world_f [ mk_p_bool false; mk_pid event ])
                (mk_p_goto loop_state_name))))
   in
-  let es = List.map mk_f request_ops in
-  let condition =
-    mk_p_ors
-    @@ List.map
-         (fun op -> mk_p_eq (mk_p_string op.x) (mk_pid action))
-         response_ops
+  let request_es = List.map mk_request_f request_ops in
+  let mk_response_f op =
+    let event = (spf "event_%s" op.x) #: op.ty in
+    let print_event = mk_p_printf (spf "event %s: {0}" op.x) [ mk_pid event ] in
+    let random_f = random_event_function_decl op in
+    let next_world_f = next_world_function_decl op in
+    mk_p_it
+      (mk_p_eq (mk_p_string op.x) (mk_pid action))
+      (mk_p_let event (mk_p_app random_f [])
+         (mk_p_seq print_event
+            (mk_p_it
+               (mk_p_not
+               @@ mk_p_app next_world_f [ mk_p_bool true; mk_pid event ])
+               (mk_p_goto loop_state_name))))
   in
-  let last = mk_p_it (mk_p_not condition) (mk_p_goto loop_state_name) in
+  let response_es = List.map mk_response_f response_ops in
   let print_action = mk_p_printf "choose action: {0}" [ mk_pid action ] in
   let body =
     mk_p_let action
       (mk_random_from_seq (mk_p_app get_available_actions_function_decl []))
-      (mk_p_seqs (print_action :: es) last)
+      (mk_p_seqs_ ((print_action :: request_es) @ response_es))
   in
   let body = mk_p_seq e1 body in
   (Entry #: Nt.Ty_unit, mk_p_function_decl [] [] body)
@@ -570,11 +666,11 @@ let machine_register_finals { name; local_vars; local_funcs; states } world ss =
 
 let machine_register_automata m kind_ctx ctx { world; reg } =
   (* let open SFA in *)
-  let actions, mapping, d2s = concretlize_atuoamta reg in
-  let m = machine_register_world m world in
+  let actions, mapping, finals, d2s = concretlize_atuoamta reg in
+  let m = machine_register_world m (IntMap.to_key_list mapping) world in
   let m = machine_register_d2s m world d2s in
   let m = machine_register_transitions m mapping in
-  let m = machine_register_finals m world reg.finals in
+  let m = machine_register_finals m world finals in
   let m = machine_register_actions m kind_ctx world actions in
   let ops =
     List.map (fun (op, (vs, _)) -> op #: (mk_p_record_ty vs))

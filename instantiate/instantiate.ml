@@ -236,35 +236,42 @@ let eta_reduction_items (ctx : rexpr ctx) (es : Nt.t item list) : rexpr ctx =
   List.fold_left (fun ctx e -> eta_reduction_item ctx e) ctx es
 
 let regspec_to_sfa m =
-  let bmap, { world; reg } =
+  let { world; reg } =
     Desymbolic.desymbolic_regspec
       (fun (_, prop) -> Prover.check_sat_bool prop)
       m
   in
   (* let () = Printf.printf " zz?: %s\n" @@ layout_symbolic_regex reg in *)
   let module DFA = DesymFA in
-  let fa = DFA.compile2dfa reg in
-  let () = Pp.printf "\n@{<bold>To DFA:@}\n%s\n" (DFA.layout_dfa fa) in
-  let sfa = SFA.from_desym_dfa bmap fa in
-  let () = Pp.printf "\n@{<bold>Back To SFA:@}\n%s\n" (SFA.layout_dfa sfa) in
-  { world; reg = sfa }
+  let f (global_prop, bmap, reg) =
+    let fa = DFA.compile2dfa reg in
+    let () = Pp.printf "\n@{<bold>To DFA:@}\n%s\n" (DFA.layout_dfa fa) in
+    let sfa = SFA.from_desym_dfa bmap fa in
+    let () = Pp.printf "\n@{<bold>Back To SFA:@}\n%s\n" (SFA.layout_dfa sfa) in
+    (global_prop, sfa)
+  in
+  { world; reg = List.map f reg }
 
 let rename_regspec_by_event_ctx ctx { world; reg } =
-  { world; reg = SFA.rename_sevent ctx reg }
+  let reg =
+    List.map (fun (prop, reg) -> (prop, SFA.rename_sevent ctx reg)) reg
+  in
+  { world; reg }
 
 let regspecs_to_sfas m = StrMap.map regspec_to_sfa m
 
 let machine_to_sfa (m : (Nt.t, Nt.t sevent) regex machine) =
-  let bmap, { binding; reg } =
-    Desymbolic.desymbolic_machine (fun _ -> true) m
-  in
+  let { binding; reg } = Desymbolic.desymbolic_machine (fun _ -> true) m in
   (* let () = Printf.printf " zz?: %s\n" @@ layout_symbolic_regex reg in *)
   let module DFA = DesymFA in
-  let fa = DFA.compile2dfa reg in
-  let () = Pp.printf "\n@{<bold>To DFA:@}\n%s\n" (DFA.layout_dfa fa) in
-  let sfa = SFA.from_desym_dfa bmap fa in
-  let () = Pp.printf "\n@{<bold>Back To SFA:@}\n%s\n" (SFA.layout_dfa sfa) in
-  { binding; reg = sfa }
+  let f (global_prop, bmap, reg) =
+    let fa = DFA.compile2dfa reg in
+    let () = Pp.printf "\n@{<bold>To DFA:@}\n%s\n" (DFA.layout_dfa fa) in
+    let sfa = SFA.from_desym_dfa bmap fa in
+    let () = Pp.printf "\n@{<bold>Back To SFA:@}\n%s\n" (SFA.layout_dfa sfa) in
+    (global_prop, sfa)
+  in
+  { binding; reg = List.map f reg }
 
 let machines_to_sfas (machines : (Nt.t, Nt.t sevent) regex machine StrMap.t) =
   StrMap.map machine_to_sfa machines

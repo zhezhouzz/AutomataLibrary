@@ -13,17 +13,17 @@ let rec layout_pnt t =
     | Ty_constructor (name, [ ty1; ty2 ]) when String.equal name "map" ->
         spf "map[%s, %s]" (aux ty1) (aux ty2)
     | Ty_tuple ts when List.length ts > 1 ->
-        spf "(%s)" @@ List.split_by_comma aux ts
+        spf "(%s)" @@ List.split_by ", " aux ts
     | Ty_record l -> (
         match l with
         | [] -> _failatwith __FILE__ __LINE__ "bad record"
         | [ _ ] -> _failatwith __FILE__ __LINE__ "bad record"
         | (name, _) :: _ when String.equal name "0" ->
             let l = List.map snd l in
-            spf "(%s)" @@ List.split_by_comma layout_pnt l
+            spf "(%s)" @@ List.split_by ", " layout_pnt l
         | _ ->
             spf "(%s)"
-            @@ List.split_by_comma (fun (a, b) -> layout_pnt_typed a b) l)
+            @@ List.split_by ", " (fun (a, b) -> layout_pnt_typed a b) l)
     | _ as t -> layout t
   in
   aux t
@@ -65,7 +65,7 @@ let rec layout_p_expr n = function
             (layout_typed_p_expr 0 e2)
       | _ -> _failatwith __FILE__ __LINE__ "die")
   | PApp { pfunc; args } ->
-      spf "%s(%s)" pfunc.x (List.split_by_comma (layout_typed_p_expr 0) args)
+      spf "%s(%s)" pfunc.x (List.split_by ", " (layout_typed_p_expr 0) args)
   | PRecord l -> (
       match l with
       | [] -> _failatwith __FILE__ __LINE__ "die"
@@ -74,12 +74,12 @@ let rec layout_p_expr n = function
       | [ (a, b) ] -> spf "(%s = %s,)" a (layout_typed_p_expr 0 b)
       | (name, _) :: _ when String.equal name "0" ->
           spf "(%s)"
-            (List.split_by_comma
+            (List.split_by ", "
                (fun (_, b) -> spf "%s" (layout_typed_p_expr 0 b))
                l)
       | _ ->
           spf "(%s)"
-            (List.split_by_comma
+            (List.split_by ", "
                (fun (a, b) -> spf "%s = %s" a (layout_typed_p_expr 0 b))
                l))
   | PField { record; field } ->
@@ -143,13 +143,13 @@ let rec layout_p_expr n = function
       spf "%s\n%s%s\n%s%s" head tbranch mid fbranch last
   | PPrintf (format, es) ->
       spf "print format(\"%s\", %s)" format
-        (List.split_by_comma (layout_typed_p_expr 0) es)
+        (List.split_by ", " (layout_typed_p_expr 0) es)
   | PLet _ -> _failatwith __FILE__ __LINE__ "unimp"
 
 and layout_typed_p_expr n { x; _ } = layout_p_expr n x
 
 let layout_p_func_ if_omit n { params; local_vars; body } =
-  let params_str = List.split_by "," layout_pnt_typed_var params in
+  let params_str = List.split_by ", " layout_pnt_typed_var params in
   let local_vars_str =
     List.split_by ""
       (fun x ->

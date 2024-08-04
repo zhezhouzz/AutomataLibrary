@@ -4,8 +4,9 @@
   ],
   "max_printing_size": 300,
   "log_tags": [
-      "queries",
+      // "queries",
       "result",
+      "desymbolic",
       "never-use"
   ],
   "prover_timeout_bound": 999,

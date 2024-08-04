@@ -2,6 +2,8 @@ open Language
 open Head
 open Zzdatatype.Datatype
 
+let __log = _log "desym_mapping"
+
 module Predictable = struct
   type lit = Nt.t Ast.lit
   type prop = Nt.t Ast.prop
@@ -60,6 +62,7 @@ let tab_to_prop tab =
 
 let print_opt_stat (num, test_num) features =
   let total_fv = Sugar.pow 2 (Array.length features) in
+  __log @@ fun _ ->
   Printf.printf "valid(%i/%i); cost(%i/%i = %f)\n" num total_fv test_num
     total_fv
     (float_of_int test_num /. float_of_int total_fv)
@@ -74,6 +77,7 @@ let print_local_fv gidx (op, features) l =
           ([], []) features
       in
       let () =
+        __log @@ fun _ ->
         Printf.printf "%s_%i_%i:: POS [%s]  NEG [%s]\n" op gidx idx
           (List.split_by_comma layout_lit pos)
           (List.split_by_comma layout_lit neg)
@@ -91,6 +95,7 @@ let print_global_fv features l =
           ([], []) features
       in
       let () =
+        __log @@ fun _ ->
         Printf.printf "global_%i:: POS [%s]  NEG [%s]\n" idx
           (List.split_by_comma layout_lit pos)
           (List.split_by_comma layout_lit neg)
@@ -103,6 +108,7 @@ let mk_mt_tab check_prop_sat { global_features; local_features } =
   (*   StrMap.map (fun (_, features) -> Array.of_list features) local_features *)
   (* in *)
   let () =
+    __log @@ fun _ ->
     Printf.printf "[Global DT]:\n";
     Head.pprint_tab global_features
   in
@@ -111,6 +117,7 @@ let mk_mt_tab check_prop_sat { global_features; local_features } =
   in
   let global_tab = DT.dt_to_tab (global_features, global_dt) in
   let () =
+    __log @@ fun _ ->
     Printf.printf "[Global DT]\n";
     print_opt_stat (List.length global_tab, test_num) global_features
   in
@@ -119,6 +126,7 @@ let mk_mt_tab check_prop_sat { global_features; local_features } =
     StrMap.mapi
       (fun op (vs, features) ->
         let () =
+          __log @@ fun _ ->
           Printf.printf "[%s DT]:\n" op;
           Head.pprint_tab features
         in
@@ -126,6 +134,7 @@ let mk_mt_tab check_prop_sat { global_features; local_features } =
           DT.dynamic_classify (fun prop -> check_prop_sat (vs, prop)) features
         in
         let () =
+          __log @@ fun _ ->
           Printf.printf "[%s DT]\n" op;
           print_opt_stat (0, test_num) features
         in
@@ -133,25 +142,35 @@ let mk_mt_tab check_prop_sat { global_features; local_features } =
       local_features
   in
   let dts =
-    StrMap.mapi
-      (fun op (vs, dt) ->
-        let features = snd @@ StrMap.find "mk_mt_tab" local_features op in
-        let () =
-          Printf.printf "[Refine %s DT]:\n" op;
-          Head.pprint_tab features
+    List.map
+      (fun (idx, tab) ->
+        let prop = tab_to_prop tab in
+        let dts =
+          StrMap.mapi
+            (fun op (vs, dt) ->
+              let features = snd @@ StrMap.find "mk_mt_tab" local_features op in
+              let () =
+                __log @@ fun _ ->
+                Printf.printf "[Refine %s DT] [Under]:%s\n" op
+                  (layout_prop prop);
+                Head.pprint_tab features
+              in
+              let test_num, dt =
+                DT.refine_dt_under_prop
+                  (fun local_prop -> check_prop_sat (vs, local_prop))
+                  prop (features, dt)
+              in
+              let dt = DT.dt_to_tab (features, dt) in
+              let () =
+                __log @@ fun _ ->
+                Printf.printf "[Refine %s DT]\n" op;
+                print_opt_stat (List.length dt, test_num) features
+              in
+              let () = print_local_fv 0 (op, features) dt in
+              dt)
+            local_dts
         in
-        let test_num, dt =
-          DT.refine_dt_under_prop
-            (fun prop -> check_prop_sat (vs, prop))
-            mk_true (features, dt)
-        in
-        let dt = DT.dt_to_tab (features, dt) in
-        let () =
-          Printf.printf "[Refine %s DT]\n" op;
-          print_opt_stat (List.length dt, test_num) features
-        in
-        let () = print_local_fv 0 (op, features) dt in
-        dt)
-      local_dts
+        (idx, tab, dts))
+      global_tab
   in
   dts

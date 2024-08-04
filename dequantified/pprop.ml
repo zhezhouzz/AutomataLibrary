@@ -61,8 +61,9 @@ let prop_to_p_prop p =
   aux p
 
 let input_name = "input"
+let prop_func_name (op, i) = spf "prop_%s_%i" op i
 
-let mk_p_prop_function_decl qvs (vs, prop) =
+let _mk_p_prop_function_decl qvs (vs, prop) =
   let input = input_name #: (mk_p_record_ty vs) in
   let prepare =
     List.map (fun v -> mk_p_assign (mk_pid v, mk_field (mk_pid input) v.x)) vs
@@ -72,3 +73,15 @@ let mk_p_prop_function_decl qvs (vs, prop) =
     local_vars = vs;
     body = mk_p_seqs prepare (mk_return @@ prop_to_p_prop prop);
   }
+
+type pprop = string * int * (Nt.t, string) typed list * Nt.t prop
+
+let global_event_name = "_global_"
+
+let global_prop_func_decl i =
+  (prop_func_name (global_event_name, i)) #: Nt.Ty_bool
+
+let _mk_p_global_prop_function_decl i qvs prop =
+  ( global_prop_func_decl i,
+    { params = qvs; local_vars = []; body = mk_return @@ prop_to_p_prop prop }
+  )

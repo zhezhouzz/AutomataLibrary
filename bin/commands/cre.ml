@@ -29,8 +29,8 @@ let read_p source_file () =
   let code = Ptypecheck.p_items_infer emp code in
   let code = map_on_p_machine Dequantified.machine_register_qtypes_test code in
   let () = Printf.printf "%s\n" (layout_p_program code) in
-  let code = map_on_p_machine Dequantified.machine_register_world_test code in
-  let () = Printf.printf "%s\n" (layout_p_program code) in
+  (* let code = map_on_p_machine Dequantified.machine_register_world_test code in *)
+  (* let () = Printf.printf "%s\n" (layout_p_program code) in *)
   ()
 
 let read_p_and_spec p_source_file spec_source_file output_file () =
@@ -181,17 +181,17 @@ let read_sfa source_file () =
   in
   let machines = Instantiate.machines_to_sfas machines in
   (* let machine = StrMap.find "die" machines "client" in *)
-  let () =
-    StrMap.iter
-      (fun name m ->
-        let () =
-          Printf.printf "machine %s:\n%s\n" name
-          @@ Instantiate.layout_sfa_machine m
-        in
-        let () = SFA.save_as_digraph m.reg "tmp.dot" in
-        ())
-      machines
-  in
+  (* let () = *)
+  (*   StrMap.iter *)
+  (*     (fun name m -> *)
+  (*       let () = *)
+  (*         Printf.printf "machine %s:\n%s\n" name *)
+  (*         @@ Instantiate.layout_sfa_machine m *)
+  (*       in *)
+  (*       let () = SFA.save_as_digraph m.reg "tmp.dot" in *)
+  (*       ()) *)
+  (*     machines *)
+  (* in *)
   (* let () = test_sfa1 code in *)
   ()
 

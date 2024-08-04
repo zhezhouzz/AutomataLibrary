@@ -1,5 +1,4 @@
   val "==" : 'a -> 'a -> bool;
-  val "!=" : 'a -> 'a -> bool;
   val ">" : 'a -> 'a -> bool;
   val ">=" : 'a -> 'a -> bool;
   val "<" : 'a -> 'a -> bool;
@@ -22,8 +21,8 @@
 
   machine no_event_has_id (i: id) =
   <[function
-  | eWithDrawReq -> rId != i
-  | eWithDrawResp -> rId != i
+  | eWithDrawReq -> not (rId == i)
+  | eWithDrawResp -> not (rId == i)
   ]>;
 
   machine resp_has_id (i: id) =

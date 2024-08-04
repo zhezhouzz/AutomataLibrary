@@ -101,12 +101,8 @@ let desymbolic_sevent dts se =
       let mts = List.map (fun local_embedding -> (op, local_embedding)) mts in
       mts
 
-(* NOTE: the None indicate the emrty set *)
+(* NOTE: the None indicate the empty set *)
 let desymbolic_local dts regex =
-  let () =
-    (* Env.show_log "regex_simpl" @@ fun _ -> *)
-    Pp.printf "@{<bold>regex before:@} %s\n" (layout_symbolic_regex regex)
-  in
   let rec aux regex =
     match regex with
     | Extension _ | SyntaxSugar _ | RExpr _ ->
@@ -176,9 +172,43 @@ let desymbolic checker srl =
   let head = ctx_ctx_init srl in
   (* let () = Env.show_log "desymbolic" @@ fun _ -> Head.pprint_head head in *)
   let dts = Mapping.mk_mt_tab checker head in
-  let srl' = desymbolic_local dts srl in
-  let backward_maping = mk_backward_mapping head (dts_to_backward_dts dts) in
-  (backward_maping, srl')
+  let () =
+    _log "desymbolic" @@ fun _ ->
+    Pp.printf "@{<bold>regex before:@} %s\n" (layout_symbolic_regex srl)
+  in
+  let automata =
+    List.map
+      (fun (_, global, local) ->
+        let srl = partial_evaluate_regex global srl in
+        let global_prop = Mapping.tab_to_prop global in
+        let () =
+          _log "desymbolic" @@ fun _ ->
+          Pp.printf "@{<bold>Under global prop:@} %s\n"
+            (layout_prop global_prop)
+        in
+        let () =
+          _log "desymbolic" @@ fun _ ->
+          Pp.printf "@{<bold>regex simpl:@} %s\n" (layout_symbolic_regex srl)
+        in
+        let automaton = desymbolic_local local srl in
+        let () =
+          _log "desymbolic" @@ fun _ ->
+          Pp.printf "\n@{<bold>After Desymbolic:@}\n%s\n"
+            (layout_desym_regex automaton)
+        in
+        let automaton = simp_regex DesymLabel.eq automaton in
+        let () =
+          _log "desymbolic" @@ fun _ ->
+          Pp.printf "\n@{<bold>After Simplication:@}\n%s\n"
+            (layout_desym_regex automaton)
+        in
+        let backward_maping =
+          mk_backward_mapping head (dts_to_backward_dts local)
+        in
+        (global_prop, backward_maping, automaton))
+      dts
+  in
+  automata
 
 (* let desymbolic_qregex checker qregex = *)
 (*   let head = ctx_ctx_init (get_regex_from_qregex qregex) in *)
@@ -199,20 +229,12 @@ let desymbolic_reg checker reg =
     Pp.printf "\n@{<bold>After Delimit Context@}:\n%s\n"
       (layout_symbolic_regex reg)
   in
-  let bmap, q = desymbolic checker reg in
-  let () =
-    Pp.printf "\n@{<bold>After Desymbolic:@}\n%s\n" (layout_desym_regex q)
-  in
-  let q = simp_regex DesymLabel.eq q in
-  let () =
-    Pp.printf "\n@{<bold>After Simplication:@}\n%s\n" (layout_desym_regex q)
-  in
-  (bmap, q)
+  desymbolic checker reg
 
 let desymbolic_machine checker { binding; reg } =
-  let bmap, reg = desymbolic_reg checker reg in
-  (bmap, { binding; reg })
+  let reg = desymbolic_reg checker reg in
+  { binding; reg }
 
 let desymbolic_regspec checker { world; reg } =
-  let bmap, reg = desymbolic_reg checker reg in
-  (bmap, { world; reg })
+  let reg = desymbolic_reg checker reg in
+  { world; reg }
