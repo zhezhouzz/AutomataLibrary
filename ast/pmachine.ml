@@ -317,6 +317,7 @@ type 't p_machine_decl = {
 [@@deriving sexp]
 
 type 't p_item =
+  | PEnumDecl of (string * string list)
   | PMachine of 't p_machine_decl
   | PTypeDecl of (Nt.t, string) typed
   | PEventDecl of (Nt.t, string) typed

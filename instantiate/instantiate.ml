@@ -166,11 +166,17 @@ let regex_expr_to_regspec_opt ctx (r : rexpr) =
     | QFRegex { qv; body } -> (
         match qv.ty with
         | RForall abstract_type ->
-            let* ty = get_opt ctx (Nt.layout abstract_type) in
+            let* ty =
+              _force_abstact_super_ty_opt __FILE__ __LINE__
+              @@ get_opt ctx (Nt.layout abstract_type)
+            in
             let* world, r = aux (RRegex body) in
             Some (WMap { qv = qv.x #: ty; abstract_type; world }, r)
         | RExists abstract_type ->
-            let* ty = get_opt ctx (Nt.layout abstract_type) in
+            let* ty =
+              _force_abstact_super_ty_opt __FILE__ __LINE__
+              @@ get_opt ctx (Nt.layout abstract_type)
+            in
             let* world, r = aux (RRegex body) in
             Some (WSingle { qv = qv.x #: ty; abstract_type; world }, r)
         | _ -> None)
@@ -215,15 +221,18 @@ let layout_sfa_machine m = layout_machine_ SFA.layout_dfa m
 
 let mk_abstract_ctx_one ctx (e : Nt.t item) =
   match e with
-  | MTyDeclSub { type_name; super_ty } -> add_to_right ctx type_name #: super_ty
+  | MTyDeclSub { type_name; super_ty } ->
+      add_to_right ctx type_name #: (mk_super_abstract_type super_ty)
+  | MEnumDecl (type_name, strs) ->
+      add_to_right ctx type_name #: (mk_enum_abstract_type strs)
   | _ -> ctx
 
 let mk_abstract_ctx es = List.fold_left mk_abstract_ctx_one emp es
 
 let eta_reduction_item (ctx : rexpr ctx) (e : Nt.t item) : rexpr ctx =
   match e with
-  | MTyDecl _ | MEventDecl _ | MValDecl _ | MMethodPred _ | MAxiom _
-  | MTyDeclSub _ ->
+  | MEnumDecl _ | MTyDecl _ | MEventDecl _ | MValDecl _ | MMethodPred _
+  | MAxiom _ | MTyDeclSub _ ->
       ctx
   | MRegex { name; automata } -> (
       match automata with
@@ -234,6 +243,14 @@ let eta_reduction_item (ctx : rexpr ctx) (e : Nt.t item) : rexpr ctx =
 
 let eta_reduction_items (ctx : rexpr ctx) (es : Nt.t item list) : rexpr ctx =
   List.fold_left (fun ctx e -> eta_reduction_item ctx e) ctx es
+
+(* let get_enums_from_item (es : Nt.t item list) = *)
+(*   let es = *)
+(*     List.filter_map *)
+(*       (function MEnumDecl (n, ns) -> Some (PEnumDecl (n, ns)) | _ -> None) *)
+(*       es *)
+(*   in *)
+(*   es *)
 
 let regspec_to_sfa m =
   let { world; reg } =

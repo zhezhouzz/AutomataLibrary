@@ -28,7 +28,7 @@ let prop_to_p_prop p =
     | Not a -> mk_p_not (aux a)
     | And es -> (
         match List.map aux es with
-        | [] -> _failatwith __FILE__ __LINE__ "die"
+        | [] -> mk_p_bool true
         | [ e ] -> e
         | e :: es ->
             List.fold_left
@@ -41,7 +41,7 @@ let prop_to_p_prop p =
               e es)
     | Or es -> (
         match List.map aux es with
-        | [] -> _failatwith __FILE__ __LINE__ "die"
+        | [] -> mk_p_bool false
         | [ e ] -> e
         | e :: es ->
             List.fold_left

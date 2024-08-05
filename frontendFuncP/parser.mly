@@ -211,6 +211,8 @@ machine:
 ;
 
 item:
+  | TYPEDEF id=IDENT ASSIGN nt=nt {{y = PTypeDecl (id #: (nt)); loc = $startpos}}
+  | TYPEDEF id=IDENT ASSIGN MACHINEDEF {{y = PTypeDecl (id #: (mk_p_abstract_ty "machine")); loc = $startpos}}
   | EVENTDECL id=IDENT COLON nt=nt {{y = PEventDecl (id #: (nt)); loc = $startpos}}
   | FUNCDECL id=biop COLON nt=nt {{y = PPrimFuncDecl (id #: (Some nt)); loc = $startpos}}
   | FUNCDECL id=IDENT COLON nt=nt {{y = PPrimFuncDecl (id #: (Some nt)); loc = $startpos}}

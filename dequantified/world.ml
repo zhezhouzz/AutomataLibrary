@@ -10,16 +10,6 @@ let gprop_id_decl = "gprop_id" #: Nt.Ty_int
 type qindex = int list
 type pexpr = (Nt.t, Nt.t p_expr) typed
 
-let rec world_to_nt = function
-  | WState -> Nt.Ty_int
-  | WSingle { qv; world; _ } -> Nt.Ty_tuple [ qv.ty; world_to_nt world ]
-  | WMap { qv; world; _ } -> mk_p_map_ty qv.ty (world_to_nt world)
-
-let rec get_qvs_from_world = function
-  | WState -> []
-  | WSingle { qv; world; _ } -> qv :: get_qvs_from_world world
-  | WMap { qv; world; _ } -> qv :: get_qvs_from_world world
-
 let fresh_qv nt =
   let name = Rename.unique "_w" in
   name #: nt

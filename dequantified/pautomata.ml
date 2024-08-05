@@ -101,7 +101,7 @@ let concretlize_atuoamta reg =
         (fun m ->
           D2S.of_seq
           @@ Seq.map (fun (c, s) ->
-                 let () = Printf.printf "%s\n" (layout_se c) in
+                 (* let () = Printf.printf "%s\n" (layout_se c) in *)
                  (CharMap.find c s2d, s))
           @@ CharMap.to_seq m)
         mapping
@@ -375,7 +375,11 @@ let mk_next_world_function world (kind, op) =
     mk_p_ite
       (mk_p_not (mk_pid if_valid))
       (mk_p_assign (world_expr world, tmp_world_expr world))
-      (match kind with Resp -> None | Req -> Some (mk_send op (mk_pid input)))
+      (match kind with
+      | Resp -> None
+      | Hidden ->
+          _failatwith __FILE__ __LINE__ "the hidden event should be eliminated"
+      | Req -> Some (mk_send op (mk_pid input)))
   in
   let last = mk_return (mk_pid if_valid) in
   let body = mk_p_seqs (prepares @ [ loop; e_just_check_sat; body ]) last in
@@ -427,30 +431,37 @@ let random_event_function_name op = spf "random_event_%s" op
 let random_event_function_decl op =
   (random_event_function_name op.x) #: (Nt.mk_arr Nt.Ty_unit op.ty)
 
-let random_instance_from_type e =
+let random_instance_from_type abstract_ctx e =
   let aux = function
     | Nt.Ty_bool -> mk_random_bool
     | Nt.Ty_int -> mk_random_int
-    | Nt.Ty_constructor (_, []) as t ->
-        mk_random_from_seq (qtype_domain_expr (t, Nt.Ty_int))
-    | _ -> _failatwith __FILE__ __LINE__ "die"
+    | Nt.Ty_constructor (_, []) as t -> (
+        match get_opt abstract_ctx (Nt.layout t) with
+        | None -> _failatwith __FILE__ __LINE__ (spf "die: %s" (Nt.layout t))
+        | Some (ATSuper _) ->
+            mk_random_from_seq (qtype_domain_expr (t, Nt.Ty_int))
+        | Some (ATEnum names) -> mk_p_choose (mk_p_int (List.length names))
+        | Some (ATAssigned _) -> _failatwith __FILE__ __LINE__ "die")
+    | _ as ty -> _failatwith __FILE__ __LINE__ (spf "die: %s" (Nt.layout ty))
   in
   aux e
 
-let mk_random_event_function_decl op =
+let mk_random_event_function_decl abstract_ctx op =
   let vs =
     match op.ty with
     | Nt.Ty_record l -> l
     | _ -> _failatwith __FILE__ __LINE__ "die"
   in
-  let es = List.map (fun (x, ty) -> (x, random_instance_from_type ty)) vs in
+  let es =
+    List.map (fun (x, ty) -> (x, random_instance_from_type abstract_ctx ty)) vs
+  in
   let body = mk_return @@ mk_p_record es in
   (random_event_function_decl op, mk_p_function_decl [] [] body)
 
 (** mk_action *)
 
 let machine_register_actions { name; local_vars; local_funcs; states } kind_ctx
-    world actions =
+    abstract_ctx world actions =
   let actions_decls =
     StrMap.fold
       (fun op (vs, phis) l ->
@@ -477,7 +488,7 @@ let machine_register_actions { name; local_vars; local_funcs; states } kind_ctx
   in
   let random_event_function_decls =
     List.fold_right
-      (fun op l -> mk_random_event_function_decl (snd op) :: l)
+      (fun op l -> mk_random_event_function_decl abstract_ctx (snd op) :: l)
       ops []
   in
   (* let do_action_function_decl = mk_do_action_function_decl ops in *)
@@ -606,6 +617,7 @@ let loop_state kind_ctx ops =
         match get_opt kind_ctx x.x with
         | Some Req -> true
         | Some Resp -> false
+        | Some Hidden -> _failatwith __FILE__ __LINE__ "die"
         | None -> _failatwith __FILE__ __LINE__ "die")
       ops
   in
@@ -620,7 +632,7 @@ let loop_state kind_ctx ops =
 let init_state_name = "Init"
 
 let init_state_function_decl ctx =
-  let qtypes = List.map (fun x -> (mk_p_abstract_ty x.x, x.ty)) ctx in
+  let qtypes = get_qtypes_from_abstract_ctx ctx in
   let _, input = mk_qtype_init_input qtypes in
   let e = mk_p_app qtype_init_function_decl [ mk_pid input ] in
   let mk f = mk_p_app f [] in
@@ -664,26 +676,30 @@ let machine_register_finals { name; local_vars; local_funcs; states } world ss =
     states;
   }
 
-let machine_register_automata m kind_ctx ctx { world; reg } =
+let machine_register_automata m kind_ctx abstract_ctx { world; reg } =
   (* let open SFA in *)
   let actions, mapping, finals, d2s = concretlize_atuoamta reg in
   let m = machine_register_world m (IntMap.to_key_list mapping) world in
   let m = machine_register_d2s m world d2s in
   let m = machine_register_transitions m mapping in
   let m = machine_register_finals m world finals in
-  let m = machine_register_actions m kind_ctx world actions in
+  let m = machine_register_actions m kind_ctx abstract_ctx world actions in
   let ops =
     List.map (fun (op, (vs, _)) -> op #: (mk_p_record_ty vs))
     @@ StrMap.to_kv_list actions
   in
-  let m = machine_register_states m kind_ctx (ctx_to_list ctx) ops in
+  let m = machine_register_states m kind_ctx abstract_ctx ops in
   m
 
 let file_register_abstract_types items ctx =
   let l =
     List.map
-      (fun x -> PTypeDecl x)
-      (("st" #: Nt.Ty_int) :: ("action" #: mk_p_string_ty) :: ctx_to_list ctx)
+      (fun x ->
+        match x.ty with
+        | ATSuper ty -> PTypeDecl x.x #: ty
+        | ATEnum names -> PEnumDecl (x.x, names)
+        | _ -> _failatwith __FILE__ __LINE__ "unimp")
+      (("action" #: (ATSuper mk_p_string_ty)) :: ctx_to_list ctx)
   in
   l @ items
 
@@ -702,6 +718,7 @@ let file_register_events items (kind_ctx, event_ctx) =
             let tys = (source_field_decl.x, source_field_decl.ty) :: tys in
             x.x #: (Nt.Ty_record tys)
         | Some Resp -> x
+        | Some Hidden -> _failatwith __FILE__ __LINE__ "die"
         | None -> _failatwith __FILE__ __LINE__ "die")
       l
   in

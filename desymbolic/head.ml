@@ -84,7 +84,7 @@ let get_partail_op lits =
   let res = List.filter_map aux lits in
   List.slow_rm_dup (fun a b -> String.equal a.x b.x) res
 
-let make_tab addtional_global_lits regex =
+let make_tab addtional_global_args regex =
   let g = gather_regex regex in
   (* let num_lits = num_lits g in *)
   (* let () = record_max stat_max_lits num_lits in *)
@@ -106,12 +106,23 @@ let make_tab addtional_global_lits regex =
       local_lits
   in
   let global_args = List.concat @@ StrMap.to_value_list global_args in
-  let global_args = List.slow_rm_dup (fun x y -> eq_lit x.x y.x) global_args in
+  let global_args =
+    List.slow_rm_dup
+      (fun x y -> eq_lit x.x y.x)
+      (global_args @ addtional_global_args)
+  in
   (* let () = *)
-  (*   Env.show_log "desymbolic" @@ fun _ -> *)
+  (*   _log "desymbolic" @@ fun _ -> *)
   (*   Printf.printf "global_args: %s\n" *)
-  (*     (List.split_by_comma (fun x -> layout_lit x.x) global_args) *)
+  (*     (List.split_by_comma *)
+  (*        (fun x -> Sexplib.Sexp.to_string @@ sexp_of_lit Nt.sexp_of_t x.x) *)
+  (*        global_args) *)
   (* in *)
+  let () =
+    _log "desymbolic" @@ fun _ ->
+    Printf.printf "global_args: %s\n"
+      (List.split_by_comma (fun x -> layout_lit x.x) global_args)
+  in
   let euf_constraints = build_euf global_args in
   let pops = get_partail_op local_lits in
   (* let () = *)
@@ -123,14 +134,31 @@ let make_tab addtional_global_lits regex =
   let global_features =
     Array.of_list
     @@ List.slow_rm_dup (fun x y -> eq_lit x y)
-    @@ global_lits @ euf_constraints @ addtional_global_lits
-    @ partial_constraints
+    @@ global_lits @ euf_constraints @ partial_constraints
   in
   let local_features = StrMap.map litlist_to_tab local_lits in
   let res = { global_features; local_features } in
   res
 
-let ctx_ctx_init regex =
-  let tab = make_tab [] regex in
+let filter_aviable_features checker (vs, features) =
+  let f lit =
+    let prop_pos = Lit lit #: Nt.Ty_bool in
+    let prop_neg = Not prop_pos in
+    checker (vs, prop_pos) && checker (vs, prop_neg)
+  in
+  Array.of_list @@ List.filter f @@ Array.to_list features
+
+let refine_head checker { global_features; local_features } =
+  let global_features = filter_aviable_features checker ([], global_features) in
+  let local_features =
+    StrMap.map
+      (fun (vs, lits) -> (vs, filter_aviable_features checker (vs, lits)))
+      local_features
+  in
+  { global_features; local_features }
+
+let ctx_ctx_init qvs regex =
+  let qvs = List.map (fun v -> (AVar v) #: v.ty) qvs in
+  let tab = make_tab qvs regex in
   (* let () = Env.show_log "desymbolic" @@ fun _ -> pprint_head tab in *)
   tab

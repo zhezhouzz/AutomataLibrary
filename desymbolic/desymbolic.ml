@@ -168,8 +168,9 @@ let mk_backward_mapping head dts es =
   in
   List.map (mk_backward_mapping_aux head dts) @@ StrMap.to_kv_list m
 
-let desymbolic checker srl =
-  let head = ctx_ctx_init srl in
+let desymbolic checker (qvs, srl) =
+  let head = ctx_ctx_init qvs srl in
+  let head = refine_head checker head in
   (* let () = Env.show_log "desymbolic" @@ fun _ -> Head.pprint_head head in *)
   let dts = Mapping.mk_mt_tab checker head in
   let () =
@@ -218,7 +219,7 @@ let desymbolic checker srl =
 (*   let backward_maping = mk_backward_mapping head (dts_to_backward_dts dts) in *)
 (*   (backward_maping, srl') *)
 
-let desymbolic_reg checker reg =
+let desymbolic_reg checker (vs, reg) =
   let () = Pp.printf "\n@{<bold>Input:@}\n%s\n" (layout_symbolic_regex reg) in
   let reg = desugar reg in
   let () =
@@ -229,12 +230,14 @@ let desymbolic_reg checker reg =
     Pp.printf "\n@{<bold>After Delimit Context@}:\n%s\n"
       (layout_symbolic_regex reg)
   in
-  desymbolic checker reg
+  desymbolic checker (vs, reg)
 
 let desymbolic_machine checker { binding; reg } =
-  let reg = desymbolic_reg checker reg in
+  let vs = List.map (fun (x, _, c) -> x #: (constant_to_nt c)) binding in
+  let reg = desymbolic_reg checker (vs, reg) in
   { binding; reg }
 
 let desymbolic_regspec checker { world; reg } =
-  let reg = desymbolic_reg checker reg in
+  let vs = get_abstract_qvs_from_world world in
+  let reg = desymbolic_reg checker (vs, reg) in
   { world; reg }

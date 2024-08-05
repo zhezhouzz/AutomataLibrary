@@ -25,7 +25,7 @@
    typectx
    nfa
    minterm
-   ; inst
+   inst
    pmachine
    syntax
  )

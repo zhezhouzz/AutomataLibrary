@@ -7,7 +7,7 @@
 
 (* tokens *)
 (* keywords *)
-%token EOF TYPEDEF CONSTDEF SPECDEF MACHINEDEF ASSIGN FUNCDECL EVENTDECL LITDECL LET IN FUNCTION ALL REQUEST RESPONSE
+%token EOF TYPEDEF CONSTDEF SPECDEF MACHINEDEF ASSIGN FUNCDECL EVENTDECL LITDECL LET IN FUNCTION ALL REQUEST RESPONSE ENUM HIDDEN
 (* arithmetic operators *)
 %token PLUS MINUS STAR DIV LT GT LE GE NEQ EQ
 (* logic operators *)
@@ -30,6 +30,7 @@
 %%
 
 base_nt:
+  | MACHINEDEF {mk_p_abstract_ty "machine"}
   | PRIME id=IDENT {Nt.Ty_var id}
   | INT {Nt.Ty_int}
   | BOOL {Nt.Ty_bool}
@@ -38,13 +39,14 @@ base_nt:
   | nt=nt id=IDENT {Nt.Ty_constructor (id, [nt]) }
   | id=IDENT {Nt.Ty_constructor (id, [])}
   | LPAR nt=nt RPAR {nt}
+  | LT GT {Nt.Ty_record []}
   | LT ts=type_feilds GT {Nt.Ty_record ts}
   | LT ts=type_feilds SEMICOLON GT {Nt.Ty_record ts}
 ;
 
 type_feilds:
   | id=IDENT COLON nt=base_nt {[(id, nt)]}
-  | id=IDENT COLON nt=base_nt SEMICOLON ts=type_feilds {(id, nt) :: ts}
+  | id=IDENT COLON nt=base_nt COMMA ts=type_feilds {(id, nt) :: ts}
 ;
 
 product_nt:
@@ -149,6 +151,7 @@ regex_case_list:
 regex_match:
 | FUNCTION BAR cs=regex_case_list {{ y = mk_sevents_from_ses (List.map _get cs); loc = $startpos}}
 | FUNCTION cs=regex_case_list {{ y = mk_sevents_from_ses (List.map (fun x ->x.y) cs); loc = $startpos}}
+| op=IDENT BAR p=prop {{y = Atomic (normalize_name (EffEvent {op; vs = []; phi = p.y})); loc = $startpos}}
 ;
 
 regex_base:
@@ -205,13 +208,21 @@ regex:
          }
   ;
 
+enum_name_list:
+  | c=IDENT BAR cs=enum_name_list {c :: cs}
+  | c1=IDENT {[c1]}
+  ;
+
+
 statement:
+  | ENUM id=IDENT ASSIGN cs=enum_name_list {{y = MEnumDecl (id, cs); loc = $startpos}}
   | TYPEDEF id=IDENT SUBTYPING nt=nt {{y = MTyDeclSub {type_name = id; super_ty = nt}; loc = $startpos}}
   | LITDECL id=IDENT ASSIGN p=prop {{y = MAxiom {name = id; prop = p.y}; loc = $startpos}}
   | FUNCDECL id=IDENT COLON nt=nt {{y = MValDecl (id #: (Some nt)); loc = $startpos}}
   | FUNCDECL id=STRING COLON nt=nt {{y = MValDecl (id #: (Some nt)); loc = $startpos}}
   | REQUEST EVENTDECL id=IDENT COLON nt=nt {{y = MEventDecl {ev = (id #: (Some nt)); event_kind = Req}; loc = $startpos}}
   | RESPONSE EVENTDECL id=IDENT COLON nt=nt {{y = MEventDecl {ev = (id #: (Some nt)); event_kind = Resp}; loc = $startpos}}
+  | HIDDEN EVENTDECL id=IDENT COLON nt=nt {{y = MEventDecl {ev = (id #: (Some nt)); event_kind = Hidden}; loc = $startpos}}
   | TYPEDEF id=IDENT ASSIGN c=constant {{y = MRegex {name = (id #: None); automata = RExpr (RConst c)}; loc = $startpos}}
   | CONSTDEF id=IDENT ASSIGN c=constant {{y = MRegex {name = (id #: None); automata = RExpr (RConst c)}; loc = $startpos}}
   | SPECDEF id=IDENT ASSIGN q=regex {{y = MRegex {name = (id #: None); automata = q.y}; loc = $startpos}}

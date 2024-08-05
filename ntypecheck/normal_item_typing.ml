@@ -10,6 +10,7 @@ let constructor_declaration_mk_ (retty, { constr_name; argsty }) =
 
 let item_mk_ctx (e : t option item) =
   match e with
+  | MEnumDecl _ -> []
   | MTyDecl { type_name; type_params; type_decls } ->
       let retty =
         Nt.Ty_constructor
@@ -30,6 +31,7 @@ let item_mk_ctx (e : t option item) =
 
 let item_check ctx (e : t option item) : t ctx * t item =
   match e with
+  | MEnumDecl (n, ns) -> (ctx, MEnumDecl (n, ns))
   | MTyDeclSub { type_name; super_ty } ->
       (ctx, MTyDeclSub { type_name; super_ty })
   | MTyDecl { type_name; type_params; type_decls } ->

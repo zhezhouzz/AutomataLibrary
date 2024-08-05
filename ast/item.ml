@@ -6,9 +6,10 @@ open Regex
 open Inst
 open Constructor_declaration
 
-type event_kind = Req | Resp [@@deriving sexp]
+type event_kind = Req | Resp | Hidden [@@deriving sexp]
 
 type 't item =
+  | MEnumDecl of (string * string list)
   | MTyDecl of {
       type_name : string;
       type_params : string list;

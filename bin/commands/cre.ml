@@ -27,7 +27,7 @@ let read_functional_p_file source_file () =
 let read_p source_file () =
   let code = read_functional_p_file source_file () in
   let code = Ptypecheck.p_items_infer emp code in
-  let code = map_on_p_machine Dequantified.machine_register_qtypes_test code in
+  (* let code = map_on_p_machine Dequantified.machine_register_qtypes_test code in *)
   let () = Printf.printf "%s\n" (layout_p_program code) in
   (* let code = map_on_p_machine Dequantified.machine_register_world_test code in *)
   (* let () = Printf.printf "%s\n" (layout_p_program code) in *)
@@ -50,6 +50,9 @@ let read_p_and_spec p_source_file spec_source_file output_file () =
   in
   let sfa = StrMap.find "die" machines "prop" in
   let sfa = Instantiate.regspec_to_sfa sfa in
+  (* let reg = SFA.desugar_and_delimit_regex sfa.reg in *)
+  (* let () = Printf.printf "%s\n" @@ layout_symbolic_regex reg in *)
+  let () = failwith "zz" in
   let sfa = Instantiate.rename_regspec_by_event_ctx event_tyctx sfa in
   let code = read_functional_p_file p_source_file () in
   let code = Ptypecheck.p_items_infer emp code in
@@ -59,8 +62,7 @@ let read_p_and_spec p_source_file spec_source_file output_file () =
   let code = Dequantified.file_register_abstract_types code abstract_ctx in
   let code =
     map_on_p_machine
-      (fun m ->
-        Dequantified.machine_register_qtypes m (ctx_to_list abstract_ctx))
+      (fun m -> Dequantified.machine_register_qtypes m abstract_ctx)
       code
   in
   let code =

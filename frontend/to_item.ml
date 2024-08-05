@@ -96,6 +96,7 @@ let layout_ct_opt = function
 let layout_opt_ty = function None -> "?" | Some t -> Nt.layout t
 
 let layout_opt_item = function
+  | MEnumDecl _ -> ""
   | MTyDecl _ -> _failatwith __FILE__ __LINE__ "die"
   | MEventDecl { ev = x; _ } -> spf "val %s: %s" x.x @@ layout_ct_opt x.ty
   | MTyDeclSub { type_name; super_ty } ->
@@ -110,6 +111,7 @@ let layout_opt_item = function
         (To_regex.layout layout_opt_ty To_sevent.layout automata)
 
 let layout_item = function
+  | MEnumDecl _ -> ""
   | MTyDecl _ -> _failatwith __FILE__ __LINE__ "die"
   | MEventDecl { ev = x; _ } -> spf "val %s: %s" x.x @@ Nt.layout x.ty
   | MTyDeclSub { type_name; super_ty } ->

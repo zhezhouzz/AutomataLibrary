@@ -6,10 +6,13 @@
   val "-" : 'a -> 'a -> 'a;
   val "+" : 'a -> 'a -> 'a;
 
-  type server <: int;
+  enum status = ERROR | OK | Unknown ;
+
+  type server <: machine;
   type account <: int;
   type amount <: int;
   type id <: int;
+
 
   request event eWithDrawReq: <accountId: account; amount: amount; rId: id>;
   response event eWithDrawResp: <status: bool; accountId: account; balance: amount; rId: id>;

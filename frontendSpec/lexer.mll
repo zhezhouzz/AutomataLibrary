@@ -40,7 +40,7 @@ rule next_token = parse
 
   (* YOUR TOKENS HERE... *)
   (* keywords... *)
-  | "val" {FUNCDECL}
+  | "def" {FUNCDECL}
   | "event" {EVENTDECL}
   | "type" {TYPEDEF}
   | "const" {CONSTDEF}
@@ -54,6 +54,8 @@ rule next_token = parse
   | "all" {ALL}
   | "request" {REQUEST}
   | "response" {RESPONSE}
+  | "enum" {ENUM}
+  | "hidden" {HIDDEN}
   (* arithmetic operators *)
   | "-" {MINUS}
   | "+" {PLUS}

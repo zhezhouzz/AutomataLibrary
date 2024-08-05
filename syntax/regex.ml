@@ -113,7 +113,8 @@ let rec desugar regex =
   | RExpr (RRegex r) -> desugar r
   | RExpr _ ->
       let () = Printf.printf "%s\n" (layout_sexp_regex regex) in
-      _failatwith __FILE__ __LINE__ "should be eliminated"
+      _failatwith __FILE__ __LINE__
+        (spf "should be eliminated: %s" (layout_sexp_regex regex))
   | Extension r -> Extension (desugar_regex_extension r)
   | SyntaxSugar (SetMinusA (r1, r2)) ->
       desugar (LandA (desugar r1, Extension (ComplementA (desugar r2))))
@@ -259,17 +260,22 @@ let mk_sevents_from_ses ses =
 
 let simp_regex (eq : 'a -> 'a -> bool) (regex : ('t, 'a) regex) =
   let mk_multiatom ses =
+    (* let () = *)
+    (*   Printf.printf "%i = len(%s)\n" (List.length ses) *)
+    (*     (layout_sexp_regex (MultiAtomic ses)) *)
+    (* in *)
     let ses = List.slow_rm_dup eq ses in
     match ses with [] -> EmptyA | _ -> MultiAtomic ses
   in
   let rec aux regex =
+    (* let () = Printf.printf "simp: %s\n" @@ layout_sexp_regex regex in *)
     match regex with
     | RExpr _ | SyntaxSugar _ | Extension _ ->
         _failatwith __FILE__ __LINE__ "should be eliminated"
     | RepeatN (n, r) -> RepeatN (n, aux r)
     | EmptyA -> EmptyA
     | EpsilonA -> EpsilonA
-    | Atomic se -> MultiAtomic [ se ]
+    | Atomic se -> mk_multiatom [ se ]
     | MultiAtomic se -> mk_multiatom se
     | LorA (r1, r2) -> (
         match (aux r1, aux r2) with

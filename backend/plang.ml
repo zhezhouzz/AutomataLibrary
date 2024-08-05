@@ -17,7 +17,6 @@ let rec layout_pnt t =
     | Ty_record l -> (
         match l with
         | [] -> _failatwith __FILE__ __LINE__ "bad record"
-        | [ _ ] -> _failatwith __FILE__ __LINE__ "bad record"
         | (name, _) :: _ when String.equal name "0" ->
             let l = List.map snd l in
             spf "(%s)" @@ List.split_by ", " layout_pnt l
@@ -215,6 +214,18 @@ let layout_global_function n (name, f) =
   mk_indent_line n @@ spf "fun %s = %s" name.x (layout_p_func n f)
 
 let layout_item = function
+  | PEnumDecl (name, elems) ->
+      let first = spf "enum %s {" name in
+      let es =
+        match List.last_destruct_opt @@ List.mapi (fun i a -> (i, a)) elems with
+        | None -> _failatwith __FILE__ __LINE__ "die"
+        | Some (es, (i, e)) ->
+            let es = List.map (fun (i, e) -> spf "    %s = %i," e i) es in
+            let e = spf "    %s = %i" e i in
+            es @ [ e ]
+      in
+      let last = "}" in
+      String.concat "\n" ((first :: es) @ [ last ]) ^ "\n"
   | PPrimFuncDecl _ -> ""
   | PTypeDecl x ->
       mk_indent_semicolon_line 0 @@ spf "type %s = %s" x.x (layout_pnt x.ty)
@@ -222,8 +233,15 @@ let layout_item = function
       match x.ty with
       | Nt.Ty_unit -> mk_indent_semicolon_line 0 @@ spf "event %s" x.x
       | _ ->
-          mk_indent_semicolon_line 0 @@ spf "event %s: %s" x.x (layout_pnt x.ty)
-      )
+          let type_name_x =
+            String.mapi (fun i c -> if 0 == i then 't' else c) x.x
+          in
+          let str =
+            mk_indent_semicolon_line 0
+            @@ spf "type %s = %s" type_name_x (layout_pnt x.ty)
+          in
+          str ^ mk_indent_semicolon_line 0
+          @@ spf "event %s: %s" x.x (layout_pnt x.ty))
   | PMachine m -> layout_p_machine 0 m
   | PGlobalFunc (name, f) -> layout_global_function 0 (name, f)
 

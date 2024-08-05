@@ -72,8 +72,21 @@ let qtype_choose_expr (nt, superty) =
     "choose" #: (Nt.mk_arr (mk_p_set_ty superty) superty)
     [ qtype_domain_expr (nt, superty) ]
 
+let get_qtypes_from_abstract_ctx ctx =
+  List.filter_map
+    (function
+      | { x; ty = ATSuper nt } -> Some (mk_p_abstract_ty x, nt) | _ -> None)
+    (ctx_to_list ctx)
+
 let machine_register_qtypes { name; local_vars; local_funcs; states } ctx =
-  let qtypes = List.map (fun x -> (mk_p_abstract_ty x.x, x.ty)) ctx in
+  let qtypes = get_qtypes_from_abstract_ctx ctx in
+  (* let qenums = *)
+  (*   List.filter_map *)
+  (*     (function *)
+  (*       | { x; ty = ATEnum names } -> Some (mk_p_abstract_ty x, names) *)
+  (*       | _ -> None) *)
+  (*     ctx *)
+  (* in *)
   let declears = List.map qtype_domain_declear qtypes in
   {
     name;
@@ -82,5 +95,5 @@ let machine_register_qtypes { name; local_vars; local_funcs; states } ctx =
     states;
   }
 
-let machine_register_qtypes_test m =
-  machine_register_qtypes m [ "server" #: Nt.Ty_int; "account" #: Nt.Ty_int ]
+(* let machine_register_qtypes_test m = *)
+(*   machine_register_qtypes m [ "server" #: Nt.Ty_int; "account" #: Nt.Ty_int ] *)

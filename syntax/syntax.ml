@@ -10,7 +10,6 @@ include Pmachine
 
 (* include Qregex *)
 include Nfa
-
-(* include Inst *)
+include Inst
 include Minterm
 include Ast

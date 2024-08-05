@@ -791,9 +791,55 @@ module MakeAutomata (C : CHARACTER) = struct
   let intersect_nfa (nfa1 : nfa) (nfa2 : nfa) : nfa =
     inject @@ intersect_dfa (determinize nfa1) (determinize nfa2)
 
-  let compile2dfa (r : ('t, C.t) regex) : dfa =
+  let concat_dfa (dfa1 : dfa) (dfa2 : dfa) : dfa =
+    let dfa1 = normalize_dfa dfa1 in
+    let dfa2 = normalize_dfa dfa2 in
+    let finals = List.of_seq @@ StateSet.to_seq @@ dfa1.finals in
+    let _, dfa2s =
+      List.fold_left
+        (fun (total_num, res) final ->
+          let dfa2 =
+            rename_dfa
+              (fun x ->
+                if Int64.equal Int64.zero x then final
+                else Int64.add x @@ Int64.of_int total_num)
+              dfa2
+          in
+          let dfa2 = { dfa2 with start = final } in
+          let total_num = total_num + num_states_dfa dfa2 in
+          (total_num, res @ [ dfa2 ]))
+        (num_states_dfa dfa1, [])
+        finals
+    in
+    let new_finals =
+      List.fold_left
+        (fun s dfa2 -> StateSet.union s dfa2.finals)
+        StateSet.empty dfa2s
+    in
+    let new_transitoins s =
+      List.fold_left
+        (fun m dfa2 ->
+          union_charmap m
+            (CharMap.map (fun s -> StateSet.singleton s) @@ dfa2.next s))
+        CharMap.empty dfa2s
+    in
+    let nfa : nfa =
+      {
+        start = StateSet.singleton dfa1.start;
+        finals = new_finals;
+        next = new_transitoins;
+      }
+    in
+    minimize (determinize nfa)
+
+  let desugar_and_delimit_regex r =
     let r = Regex.desugar r in
     let r = Regex.delimit_context C.delimit_cotexnt_char r in
+    let r = Regex.simp_regex (fun a b -> 0 == C.compare a b) r in
+    r
+
+  let compile2dfa (r : ('t, C.t) regex) : dfa =
+    let r = desugar_and_delimit_regex r in
     let rec aux r =
       let res =
         match regex_to_raw r with
@@ -807,8 +853,11 @@ module MakeAutomata (C : CHARACTER) = struct
                 (*      (complement_dfa ctx @@ aux r1) *)
                 (*      (complement_dfa ctx @@ aux r2) *)
                 intersect_dfa (aux r1) (aux r2)
+            | SeqA (r1, r2) -> concat_dfa (aux r1) (aux r2)
             | _ ->
-                let () = Printf.printf "?? %s\n" @@ Regex.layout_sexp_regex r in
+                let () =
+                  Printf.printf "\n?? %s\n" @@ Regex.layout_sexp_regex r
+                in
                 _failatwith __FILE__ __LINE__ "die")
       in
       (* let () = *)
