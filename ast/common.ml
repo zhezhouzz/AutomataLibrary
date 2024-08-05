@@ -12,3 +12,11 @@ let vs_names_from_types tps =
   let n = List.length tps in
   let vs = vs_names n in
   List.map (fun (x, ty) -> x #: ty) @@ _safe_combine __FILE__ __LINE__ vs tps
+
+(* for automata *)
+type state = int
+
+let _default_init_state = 0
+
+module StateSet = Set.Make (Int)
+module StateMap = Map.Make (Int)

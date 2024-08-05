@@ -1,48 +1,41 @@
 open Common
-open Sugar
+open Zzdatatype.Datatype
 
-type 'a automaton = {
-  state_bound : (int * int); (* a continue range *)
-  init_states : int;
-  final_states : int list;
-  total_labels : 'a list;
-  transition_map : (int, 'a option * int) Hashtbl.t;
-}
+module type CHARAC = sig
+  include Map.OrderedType
 
-(* type 'a dfa = { *)
-(*   initial_state : int; *)
-(*   final_states : int list; *)
-(*   total_states : int list; *)
-(*   total_labels : 'a list; *)
-(*   d_transition_map : (int * 'a, int) Hashtbl.t; *)
-(* } *)
+  val layout : t -> string
+  val delimit_cotexnt_char : t list option * t -> t list
+end
 
-(* let automata_dump_to_dfa *)
-(*     { initial_state; final_states; total_states; total_labels; transition_map } *)
-(*     = *)
-(*   let d_transition_map = *)
-(*     Hashtbl.create (List.length total_labels * List.length total_states) *)
-(*   in *)
-(*   let () = *)
-(*     Hashtbl.iter *)
-(*       (fun s (a, d) -> *)
-(*         match a with *)
-(*         | None -> _failatwith __FILE__ __LINE__ "die" *)
-(*         | Some label -> ( *)
-(*             match Hashtbl.find_opt d_transition_map (s, label) with *)
-(*             | None -> Hashtbl.add d_transition_map (s, label) d *)
-(*             | Some _ -> _failatwith __FILE__ __LINE__ "die")) *)
-(*       transition_map *)
-(*   in *)
-(*   { initial_state; final_states; total_states; total_labels; d_transition_map } *)
+module type CHARACTER = sig
+  include CHARAC
 
-let rename_state (bound: int) (a: 'a automata) =
-  let shift x = x + bound - (fst a.state_bound) in
-  let final_states = List.map shift a.final_states in
-  let tot
+  type char_idx
 
-(* let connect (a1: 'a automaton) (a2: 'a automaton) = *)
+  val layout : t -> string
+  val init_char_map : unit -> char_idx
+  val add_char_to_map : char_idx -> t -> unit
+  val id2c : char_idx -> Int64.t -> t
+  val c2id : char_idx -> t -> Int64.t
+end
 
-(* let from_regex (regex: 'a regex) = *)
-(*   let regex = in *)
-(*   let rec gather  *)
+module type AUTOMATA = sig
+  module C : CHARACTER
+  module CharMap : Map.S with type key = C.t
+
+  type transitions = StateSet.t CharMap.t
+  type d_transition = state CharMap.t
+
+  type nfa = {
+    start : StateSet.t;
+    finals : StateSet.t;
+    next : state -> transitions;
+  }
+
+  type dfa = {
+    start : state;
+    finals : StateSet.t;
+    next : state -> d_transition;
+  }
+end

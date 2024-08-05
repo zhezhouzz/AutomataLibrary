@@ -171,7 +171,7 @@ let init_p_int64_map (m : (pexpr -> pexpr) StateMap.t) (expr : pexpr) =
   let es =
     StateMap.fold
       (fun i f res ->
-        let lvalue = mk_p_access (expr, mk_p_int (Int64.to_int i)) in
+        let lvalue = mk_p_access (expr, mk_p_int i) in
         f lvalue :: res)
       m []
   in
@@ -196,8 +196,7 @@ let mk_transition_init_function mapping =
   let mapping =
     IntMap.map
       (StateMap.map
-         (StrMap.map
-            (IntMap.map (fun i e -> mk_p_assign (e, mk_p_int (Int64.to_int i))))))
+         (StrMap.map (IntMap.map (fun i e -> mk_p_assign (e, mk_p_int i)))))
       mapping
   in
   let mapping = IntMap.map (StateMap.map (StrMap.map init_p_int_map)) mapping in
@@ -517,10 +516,7 @@ let mk_final_states_init_function_decl ss =
           mk_p_assign (final_states_expr, mk_p_default final_states_expr.ty)
         in
         let es =
-          List.map
-            (fun s ->
-              mk_p_add_set final_states_expr (mk_p_int (Int64.to_int s)))
-            ss
+          List.map (fun s -> mk_p_add_set final_states_expr (mk_p_int s)) ss
         in
         mk_p_seqs_ (e :: es))
       ss

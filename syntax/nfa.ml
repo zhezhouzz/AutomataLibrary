@@ -47,16 +47,16 @@ module MakeAutomata (C : CHARACTER) = struct
   let layout_nfa nfa =
     (* let open Zzdatatype.Datatype in *)
     let () =
-      Printf.printf "starts: %s\n" (layout_states Int64.to_string nfa.start)
+      Printf.printf "starts: %s\n" (layout_states Int.to_string nfa.start)
     in
     let () =
-      Printf.printf "finals: %s\n" (layout_states Int64.to_string nfa.finals)
+      Printf.printf "finals: %s\n" (layout_states Int.to_string nfa.finals)
     in
     let () =
       fold_transitions_nfa
         (fun (s, c, d) _ ->
-          Printf.printf "\t%s--[%s]-->%s\n" (Int64.to_string s) (C.layout c)
-            (Int64.to_string d))
+          Printf.printf "\t%s--[%s]-->%s\n" (Int.to_string s) (C.layout c)
+            (Int.to_string d))
         nfa ()
     in
     let () = print_newline () in
@@ -84,13 +84,13 @@ module MakeAutomata (C : CHARACTER) = struct
     let max_state = ref None in
     let update_max s =
       match !max_state with
-      | None -> max_state := Some (Int64.add s 1L)
-      | Some n -> if s >= n then max_state := Some (Int64.add s 1L) else ()
+      | None -> max_state := Some (Int.add s 1)
+      | Some n -> if s >= n then max_state := Some (Int.add s 1) else ()
     in
     let dummy_transitions = Hashtbl.create 1000 in
     let point_to_dummy_node (s, c) =
       (* let () = *)
-      (*   Printf.printf "### --%s-->%s\n" (C.layout c) (Int64.to_string s) *)
+      (*   Printf.printf "### --%s-->%s\n" (C.layout c) (Int.to_string s) *)
       (* in *)
       match Hashtbl.find_opt dummy_transitions c with
       | None -> Hashtbl.add dummy_transitions c (StateSet.singleton s)
@@ -255,9 +255,9 @@ module MakeAutomata (C : CHARACTER) = struct
     let module M = Map.Make (StateSet) in
     fun nfa ->
       let fresh =
-        let r = ref (0L : int64) in
+        let r = ref (_default_init_state : int) in
         fun () ->
-          r := Int64.succ !r;
+          r := Int.succ !r;
           !r
       in
       let rec build states (map, ts, finals) =
@@ -328,7 +328,7 @@ module MakeAutomata (C : CHARACTER) = struct
   module Letter = struct
     type t = CharSet.t * state
 
-    let compare (_, x) (_, y) = Int64.compare x y
+    let compare (_, x) (_, y) = Int.compare x y
   end
 
   (** Sets of single letters *)
@@ -445,8 +445,8 @@ module MakeAutomata (C : CHARACTER) = struct
   type t = CharSet.t raw_regex
 
   let fresh_state =
-    let counter = ref 0L in
-    let incr64 r = r := Int64.succ !r in
+    let counter = ref _default_init_state in
+    let incr64 r = r := Int.succ !r in
     fun () ->
       let c = !counter in
       incr64 counter;
@@ -454,7 +454,7 @@ module MakeAutomata (C : CHARACTER) = struct
 
   let start_state = fresh_state ()
 
-  let rec annotate : 'a. 'a raw_regex -> ('a * int64) raw_regex = function
+  let rec annotate : 'a. 'a raw_regex -> ('a * int) raw_regex = function
     | Empty -> Empty
     | Eps -> Eps
     | Char c ->
@@ -574,16 +574,16 @@ module MakeAutomata (C : CHARACTER) = struct
 
   let layout_dfa (dfa : dfa) =
     (* let open Zzdatatype.Datatype in *)
-    let res = Printf.sprintf "start: %s\n" (Int64.to_string dfa.start) in
+    let res = Printf.sprintf "start: %s\n" (Int.to_string dfa.start) in
     let res =
       Printf.sprintf "%sfinals: %s\n" res
-        (layout_states Int64.to_string dfa.finals)
+        (layout_states Int.to_string dfa.finals)
     in
     let res =
       fold_transitions
         (fun (s, c, d) res ->
-          Printf.sprintf "%s\t%s--[%s]-->%s\n" res (Int64.to_string s)
-            (C.layout c) (Int64.to_string d))
+          Printf.sprintf "%s\t%s--[%s]-->%s\n" res (Int.to_string s)
+            (C.layout c) (Int.to_string d))
         dfa res
     in
     spf "%s\n" res
@@ -667,10 +667,10 @@ module MakeAutomata (C : CHARACTER) = struct
 
   let normalize_nfa (nfa : nfa) : nfa =
     let state_naming = ref StateMap.empty in
-    let next_state = ref 0L in
+    let next_state = ref _default_init_state in
     let incr () =
       let res = !next_state in
-      next_state := Int64.add 1L !next_state;
+      next_state := Int.add 1 !next_state;
       res
     in
     let do_state_renaming s =
@@ -683,10 +683,10 @@ module MakeAutomata (C : CHARACTER) = struct
 
   let normalize_dfa (dfa : dfa) : dfa =
     let state_naming = ref StateMap.empty in
-    let next_state = ref 0L in
+    let next_state = ref _default_init_state in
     let incr () =
       let res = !next_state in
-      next_state := Int64.add 1L !next_state;
+      next_state := Int.add 1 !next_state;
       res
     in
     let do_state_renaming s =
@@ -704,14 +704,14 @@ module MakeAutomata (C : CHARACTER) = struct
     let nfa1 = normalize_nfa nfa1 in
     let nfa2 = normalize_nfa nfa2 in
     let n1 = num_states_nfa nfa1 in
-    let nfa2 = rename_nfa (fun x -> Int64.add x @@ Int64.of_int n1) nfa2 in
+    let nfa2 = rename_nfa (fun x -> Int.add x n1) nfa2 in
     (nfa1, nfa2)
 
   let mk_disjoint_dfa (dfa1 : dfa) (dfa2 : dfa) =
     let dfa1 = normalize_dfa dfa1 in
     let dfa2 = normalize_dfa dfa2 in
     let n1 = num_states_dfa dfa1 in
-    let dfa2 = rename_dfa (fun x -> Int64.add x @@ Int64.of_int n1) dfa2 in
+    let dfa2 = rename_dfa (fun x -> Int.add x n1) dfa2 in
     (dfa1, dfa2)
 
   let union_nfa (nfa1 : nfa) (nfa2 : nfa) : nfa =
@@ -731,17 +731,17 @@ module MakeAutomata (C : CHARACTER) = struct
     (* let () = Printf.printf "num = %i\n" (num_states_dfa dfa1) in *)
     (* let () = layout_dfa dfa1 in *)
     (* let () = layout_dfa dfa2 in *)
-    let num2 = Int64.of_int @@ num_states_dfa dfa2 in
+    let num2 = num_states_dfa dfa2 in
     let mk_p (n1 : state) (n2 : state) =
-      let res = Int64.add n2 @@ Int64.mul num2 n1 in
+      let res = Int.add n2 @@ Int.mul num2 n1 in
       (* let () = *)
-      (*   Printf.printf "%s + %s*%s = %s\n" (Int64.to_string n2) *)
-      (*     (Int64.to_string num2) (Int64.to_string n1) (Int64.to_string res) *)
+      (*   Printf.printf "%s + %s*%s = %s\n" (Int.to_string n2) *)
+      (*     (Int.to_string num2) (Int.to_string n1) (Int.to_string res) *)
       (* in *)
       res
     in
-    let fst_p p = Int64.div p num2 in
-    let snd_p p = Int64.rem p num2 in
+    let fst_p p = Int.div p num2 in
+    let snd_p p = Int.rem p num2 in
     let seen = Hashtbl.create 1000 in
     let tbl = ref StateMap.empty in
     let update_tbl (s, c, d) =
@@ -756,8 +756,8 @@ module MakeAutomata (C : CHARACTER) = struct
       if not (Hashtbl.mem seen state) then
         (* let () = *)
         (*   Printf.printf "state: (%s, %s)\n" *)
-        (*     (Int64.to_string (fst_p state)) *)
-        (*     (Int64.to_string (snd_p state)) *)
+        (*     (Int.to_string (fst_p state)) *)
+        (*     (Int.to_string (snd_p state)) *)
         (* in *)
         let () = Hashtbl.add seen state () in
         let charmap1 = dfa1.next (fst_p state) in
@@ -769,7 +769,7 @@ module MakeAutomata (C : CHARACTER) = struct
             | Some d2 ->
                 (* let () = *)
                 (*   Printf.printf "\t--[%s]-->(%s, %s)\n" (C.layout c) *)
-                (*     (Int64.to_string d1) (Int64.to_string d2) *)
+                (*     (Int.to_string d1) (Int.to_string d2) *)
                 (* in *)
                 let d = mk_p d1 d2 in
                 update_tbl (state, c, d);
@@ -801,8 +801,7 @@ module MakeAutomata (C : CHARACTER) = struct
           let dfa2 =
             rename_dfa
               (fun x ->
-                if Int64.equal Int64.zero x then final
-                else Int64.add x @@ Int64.of_int total_num)
+                if Int.equal Int.zero x then final else Int.add x total_num)
               dfa2
           in
           let dfa2 = { dfa2 with start = final } in

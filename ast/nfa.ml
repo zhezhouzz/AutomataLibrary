@@ -1,9 +1,5 @@
+open Common
 open Zzdatatype.Datatype
-
-type state = int64
-
-module StateSet = Set.Make (Int64)
-module StateMap = Map.Make (Int64)
 
 module type CHARAC = sig
   include Map.OrderedType
