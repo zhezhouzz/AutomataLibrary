@@ -6,6 +6,7 @@ include Prop
 include Sevent
 include Regex
 include Nfa
+include FiniteAutomata
 include Typectx
 include Minterm
 include Constructor_declaration

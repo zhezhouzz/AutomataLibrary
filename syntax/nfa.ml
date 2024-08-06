@@ -1,4 +1,5 @@
 open Ast
+open Common
 
 module MakeAutomata (C : CHARACTER) = struct
   module C = C
@@ -12,10 +13,6 @@ module MakeAutomata (C : CHARACTER) = struct
     finals : StateSet.t;
     next : state -> transitions;
   }
-
-  let layout_states f s =
-    let open Zzdatatype.Datatype in
-    List.split_by_comma f @@ List.of_seq @@ StateSet.to_seq s
 
   let find_states sym nfa m =
     try CharMap.find sym (nfa.next m) with Not_found -> StateSet.empty
