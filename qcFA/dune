@@ -9,28 +9,13 @@
 ;    (:standard -unsafe -noassert -inline 100))))
 
 (library
- (public_name automata_library.syntax)
- (name syntax)
+ (public_name automata_library.qcFA)
+ (name qcFA)
  (wrapped true)
  (modules
-   common
-   op
-   constant
-   lit
-   prop
-   sevent
-   ; finiteAutomata
-   regex
-   ; qregex
-   typectx
-   ; nfa
-   basicFA
-   finiteAutomata
-   minterm
-   inst
-   pmachine
-   syntax
+   gen
+   qcFA
  )
  (preprocess
   (pps ppx_optcomp ppx_compare ppx_sexp_conv))
- (libraries language_utils ast dtree backend))
+ (libraries syntax qcheck))

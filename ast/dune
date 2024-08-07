@@ -21,7 +21,7 @@
    sevent
    regex
    finiteAutomata
-   nfa
+   ; nfa
    ; qregex
    abstract_type
    minterm

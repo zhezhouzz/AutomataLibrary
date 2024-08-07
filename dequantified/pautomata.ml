@@ -33,9 +33,7 @@ let concretlize_atuoamta reg =
     IntMap.of_seq @@ List.to_seq
     @@ List.map (fun (i, dfa) -> (i, dfa.finals)) regs
   in
-  let mapping =
-    List.map (fun (i, reg) -> (i, concretelize_dfa_aux (fun x -> x) reg)) regs
-  in
+  let mapping = List.map (fun (i, reg) -> (i, reg.next)) regs in
   let get_actions mapping =
     let ses =
       List.of_seq @@ Seq.concat

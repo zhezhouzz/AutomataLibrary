@@ -1,10 +1,10 @@
-  val "==" : 'a -> 'a -> bool;
-  val ">" : 'a -> 'a -> bool;
-  val ">=" : 'a -> 'a -> bool;
-  val "<" : 'a -> 'a -> bool;
-  val "<=" : 'a -> 'a -> bool;
-  val "-" : 'a -> 'a -> 'a;
-  val "+" : 'a -> 'a -> 'a;
+  def "==" : 'a -> 'a -> bool;
+  def ">" : 'a -> 'a -> bool;
+  def ">=" : 'a -> 'a -> bool;
+  def "<" : 'a -> 'a -> bool;
+  def "<=" : 'a -> 'a -> bool;
+  def "-" : 'a -> 'a -> 'a;
+  def "+" : 'a -> 'a -> 'a;
 
   enum status = ERROR | OK | Unknown ;
 
@@ -14,8 +14,8 @@
   type id <: int;
 
 
-  request event eWithDrawReq: <accountId: account; amount: amount; rId: id>;
-  response event eWithDrawResp: <status: bool; accountId: account; balance: amount; rId: id>;
+  request event eWithDrawReq: <accountId: account, amount: amount, rId: id>;
+  response event eWithDrawResp: <status: bool, accountId: account, balance: amount, rId: id>;
 
   machine req_has_id (i: id) =
   <[function

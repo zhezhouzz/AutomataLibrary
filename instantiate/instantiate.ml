@@ -261,10 +261,10 @@ let regspec_to_sfa m =
   (* let () = Printf.printf " zz?: %s\n" @@ layout_symbolic_regex reg in *)
   let module DFA = DesymFA in
   let f (global_prop, bmap, reg) =
-    let fa = DFA.compile2dfa reg in
-    let () = Pp.printf "\n@{<bold>To DFA:@}\n%s\n" (DFA.layout_dfa fa) in
+    let fa = DFA.compile_regex_to_dfa reg in
+    (* let () = Pp.printf "\n@{<bold>To DFA:@}\n%s\n" (DFA.layout_dfa fa) in *)
     let sfa = SFA.from_desym_dfa bmap fa in
-    let () = Pp.printf "\n@{<bold>Back To SFA:@}\n%s\n" (SFA.layout_dfa sfa) in
+    (* let () = Pp.printf "\n@{<bold>Back To SFA:@}\n%s\n" (SFA.layout_dfa sfa) in *)
     (global_prop, sfa)
   in
   { world; reg = List.map f reg }
@@ -282,7 +282,7 @@ let machine_to_sfa (m : (Nt.t, Nt.t sevent) regex machine) =
   (* let () = Printf.printf " zz?: %s\n" @@ layout_symbolic_regex reg in *)
   let module DFA = DesymFA in
   let f (global_prop, bmap, reg) =
-    let fa = DFA.compile2dfa reg in
+    let fa = DFA.compile_regex_to_dfa reg in
     let () = Pp.printf "\n@{<bold>To DFA:@}\n%s\n" (DFA.layout_dfa fa) in
     let sfa = SFA.from_desym_dfa bmap fa in
     let () = Pp.printf "\n@{<bold>Back To SFA:@}\n%s\n" (SFA.layout_dfa sfa) in

@@ -15,11 +15,9 @@ module Predictable = struct
   let mk_ite cond bencht benchf =
     Ast.Ite (Ast.Lit cond #: Nt.bool_ty, bencht, benchf)
 
-  let mk_and lit prop = Ast.(smart_add_to (Lit lit #: Nt.bool_ty) prop)
-
-  let mk_not_lit_and lit prop =
-    Ast.(smart_add_to (Not (Lit lit #: Nt.bool_ty)) prop)
-
+  let mk_and = Syntax.smart_add_to
+  let mk_or l1 l2 = Syntax.smart_or [ l1; l2 ]
+  let mk_not p = Not p
   let layout_lit = layout_lit
   let layout_prop = layout_prop
 end
@@ -36,14 +34,14 @@ type all_mt_tabs = {
 type all_dt = { global_dt : DT.t; local_dts : DT.t StrMap.t IntMap.t }
 
 let all_to_tab { global_features; local_features } { global_dt; local_dts } =
-  let global_tab = DT.dt_to_tab (global_features, global_dt) in
+  let global_tab = DT.dt_to_paths (global_features, global_dt) in
   let local_tabs =
     IntMap.map
       (fun m ->
         StrMap.mapi
           (fun op x ->
             let local_feature = StrMap.find "all_to_tab" local_features op in
-            DT.dt_to_tab (snd local_feature, x))
+            DT.dt_to_paths (snd local_feature, x))
           m)
       local_dts
   in
@@ -103,7 +101,7 @@ let print_global_fv features l =
       ())
     l
 
-let mk_mt_tab check_prop_sat { global_features; local_features } =
+let mk_mt_tab sat_solver { global_features; local_features } =
   (* let local_features_array = *)
   (*   StrMap.map (fun (_, features) -> Array.of_list features) local_features *)
   (* in *)
@@ -113,9 +111,9 @@ let mk_mt_tab check_prop_sat { global_features; local_features } =
     Head.pprint_tab global_features
   in
   let test_num, global_dt =
-    DT.dynamic_classify (fun prop -> check_prop_sat ([], prop)) global_features
+    DT.init_pruned_dt (fun prop -> sat_solver ([], prop)) global_features
   in
-  let global_tab = DT.dt_to_tab (global_features, global_dt) in
+  let global_tab = DT.dt_to_paths (global_features, global_dt) in
   let () =
     __log @@ fun _ ->
     Printf.printf "[Global DT]\n";
@@ -131,7 +129,7 @@ let mk_mt_tab check_prop_sat { global_features; local_features } =
           Head.pprint_tab features
         in
         let test_num, dt =
-          DT.dynamic_classify (fun prop -> check_prop_sat (vs, prop)) features
+          DT.init_pruned_dt (fun prop -> sat_solver (vs, prop)) features
         in
         let () =
           __log @@ fun _ ->
@@ -157,10 +155,10 @@ let mk_mt_tab check_prop_sat { global_features; local_features } =
               in
               let test_num, dt =
                 DT.refine_dt_under_prop
-                  (fun local_prop -> check_prop_sat (vs, local_prop))
+                  (fun local_prop -> sat_solver (vs, local_prop))
                   prop (features, dt)
               in
-              let dt = DT.dt_to_tab (features, dt) in
+              let dt = DT.dt_to_paths (features, dt) in
               let () =
                 __log @@ fun _ ->
                 Printf.printf "[Refine %s DT]\n" op;
@@ -174,3 +172,16 @@ let mk_mt_tab check_prop_sat { global_features; local_features } =
       global_tab
   in
   dts
+
+let mk_simp_local_prop features local_m ids =
+  let tab = IntMap.of_seq @@ List.to_seq local_m in
+  let paths = List.map (IntMap.find "die" tab) ids in
+  match Array.length features with
+  | 0 -> (
+      match paths with
+      | [] -> mk_false
+      | _ ->
+          mk_true
+          (* _failatwith __FILE__ __LINE__ *)
+          (* (spf "len(paths) = %i" (List.length paths)) *))
+  | _ -> DT.classify_as_prop features (List.map (DT.path_to_pos features) paths)

@@ -233,11 +233,10 @@ let one_param message f =
       let () = Config.meta_config_path := config_file in
       f source_file)
 
-let test =
-  Command.group ~summary:"Poirot"
-    [
-      ("read-automata", one_param "read_automata" read_automata);
-      ("read-sfa", one_param "read_sfa" read_sfa);
-      ("read-p", one_param "read_p" read_p);
-      ("read-p-sfa", three_param "read_p" read_p_and_spec);
-    ]
+let cmds =
+  [
+    ("read-automata", one_param "read_automata" read_automata);
+    ("read-sfa", one_param "read_sfa" read_sfa);
+    ("read-p", one_param "read_p" read_p);
+    ("read-p-sfa", three_param "read_p" read_p_and_spec);
+  ]

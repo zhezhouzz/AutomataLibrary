@@ -151,22 +151,29 @@ let dts_to_backward_dts dt =
         l IntMap.empty)
     dt
 
-let mk_backward_mapping_aux { local_features; _ } dts (op, ids) =
-  let vs, _ = StrMap.find "die" local_features op in
-  let local_m = StrMap.find "die" dts op in
-  let props = List.map (IntMap.find "die" local_m) ids in
-  EffEvent { op; vs; phi = Or props }
+let mk_backward_mapping_aux { local_features; _ } local op ids =
+  let vs, features = StrMap.find "die" local_features op in
+  let local_m = StrMap.find "die" local op in
+  (* let () = *)
+  (*   Printf.printf "op = %s; vs = %s\n" op *)
+  (*     (List.split_by_comma (fun x -> x.x) vs) *)
+  (* in *)
+  let phi = Mapping.mk_simp_local_prop features local_m ids in
+  EffEvent { op; vs; phi }
+(* let props = List.map (IntMap.find "die" local_m) ids in *)
+(* EffEvent { op; vs; phi = Or props } *)
 
-let mk_backward_mapping head dts es =
+let mk_backward_mapping head local (es : DesymFA.CharSet.t) =
   let m =
-    List.fold_right
+    DesymFA.CharSet.fold
       (fun (op, id) ->
         StrMap.update op (function
           | None -> Some [ id ]
           | Some l -> Some (id :: l)))
       es StrMap.empty
   in
-  List.map (mk_backward_mapping_aux head dts) @@ StrMap.to_kv_list m
+  let m = StrMap.mapi (mk_backward_mapping_aux head local) m in
+  SFA.CharSet.of_list @@ StrMap.to_value_list m
 
 let desymbolic checker (qvs, srl) =
   let head = ctx_ctx_init qvs srl in
@@ -203,9 +210,7 @@ let desymbolic checker (qvs, srl) =
           Pp.printf "\n@{<bold>After Simplication:@}\n%s\n"
             (layout_desym_regex automaton)
         in
-        let backward_maping =
-          mk_backward_mapping head (dts_to_backward_dts local)
-        in
+        let backward_maping = mk_backward_mapping head local in
         (global_prop, backward_maping, automaton))
       dts
   in

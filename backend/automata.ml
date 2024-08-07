@@ -90,7 +90,7 @@ let format_digraph = Digraph.format
 
 open Ast
 
-module MakeAutomataDot (FA : AUTOMATA) = struct
+module MakeAutomataDot (FA : FINITE_AUTOMATA) = struct
   open FA
   module CharSet = Set.Make (C)
 
@@ -135,7 +135,7 @@ module MakeAutomataDot (FA : AUTOMATA) = struct
                 add_edge state c target;
                 step target)
               targets)
-          (nfa.next state))
+          nfa.next #-> state)
     in
     StateSet.iter step nfa.start;
     (* Empty node to the left of the start state *)
