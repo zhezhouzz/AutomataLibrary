@@ -475,7 +475,7 @@ let machine_register_actions { name; local_vars; local_funcs; states } kind_ctx
       (fun x ->
         if String.equal x.x global_event_name then None
         else
-          match get_opt kind_ctx x.x with
+          match StrMap.find_opt kind_ctx x.x with
           | None -> _failatwith __FILE__ __LINE__ "die"
           | Some kind -> Some (kind, x))
       ops
@@ -608,7 +608,7 @@ let loop_state kind_ctx ops =
   let request_ops, response_ops =
     List.partition
       (fun x ->
-        match get_opt kind_ctx x.x with
+        match StrMap.find_opt kind_ctx x.x with
         | Some Req -> true
         | Some Resp -> false
         | Some Hidden -> _failatwith __FILE__ __LINE__ "die"
@@ -698,20 +698,16 @@ let file_register_abstract_types items ctx =
   l @ items
 
 let file_register_events items (kind_ctx, event_ctx) =
-  let l = ctx_to_list event_ctx in
+  let l = StrMap.to_kv_list event_ctx in
   let l =
     List.map
-      (fun x ->
-        match get_opt kind_ctx x.x with
+      (fun (x, ty) ->
+        match StrMap.find_opt kind_ctx x with
         | Some Req ->
-            let tys =
-              match x.ty with
-              | Nt.Ty_record l -> l
-              | _ -> _failatwith __FILE__ __LINE__ "die"
-            in
+            let tys = _get_record_ty_fields __FILE__ __LINE__ ty in
             let tys = (source_field_decl.x, source_field_decl.ty) :: tys in
-            x.x #: (Nt.Ty_record tys)
-        | Some Resp -> x
+            x #: (Nt.Ty_record tys)
+        | Some Resp -> x #: ty
         | Some Hidden -> _failatwith __FILE__ __LINE__ "die"
         | None -> _failatwith __FILE__ __LINE__ "die")
       l

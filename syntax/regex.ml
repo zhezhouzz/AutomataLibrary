@@ -48,7 +48,7 @@ and subst_regex_sugar regex name (m : ('t, 't sevent) regex_expr) :
   | CtxOp { op_names; body } ->
       CtxOp { op_names; body = subst_regex body name m }
   | SetMinusA (r1, r2) ->
-      SetMinusA (subst_regex r2 name m, subst_regex r1 name m)
+      SetMinusA (subst_regex r1 name m, subst_regex r2 name m)
 
 and subst_regex_expr regex name (m : ('t, 't sevent) regex_expr) :
     ('t, 'b) regex_expr =
@@ -164,12 +164,6 @@ let delimit_context (delimit_cotexnt_char : 'a list option * 'a -> 'a list)
     | Extension (ComplementA EmptyA) -> StarA (MultiAtomic (force_ctx ctx))
     | Extension (ComplementA EpsilonA) ->
         SeqA (MultiAtomic (force_ctx ctx), StarA (MultiAtomic (force_ctx ctx)))
-    | Extension (ComplementA (Atomic a)) ->
-        let others =
-          MultiAtomic
-            (List.filter (fun b -> 0 != Stdlib.compare a b) (force_ctx ctx))
-        in
-        LorA (StarA others, SeqA (Atomic a, StarA (MultiAtomic (force_ctx ctx))))
     | Extension (ComplementA r) ->
         DComplementA { atoms = force_ctx ctx; body = aux ctx r }
     | Extension AnyA -> MultiAtomic (force_ctx ctx)

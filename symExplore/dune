@@ -1,0 +1,11 @@
+(library
+ (public_name automata_library.symExplore)
+ (name symExplore)
+ (wrapped true)
+ (libraries language core prover)
+ (modules
+   common
+   explore
+   mexplore
+   symExplore
+))

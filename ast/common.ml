@@ -8,6 +8,9 @@ let vs_names n = List.init n (fun i -> spf "%s%i" "x_" i)
 
 open Mtyped
 
+let _get_record_ty_fields file line ty =
+  match ty with Nt.Ty_record l -> l | _ -> _failatwith file line "die"
+
 let vs_names_from_types tps =
   let n = List.length tps in
   let vs = vs_names n in

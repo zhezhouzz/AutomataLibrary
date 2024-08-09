@@ -225,13 +225,18 @@ let desymbolic checker (qvs, srl) =
 (*   (backward_maping, srl') *)
 
 let desymbolic_reg checker (vs, reg) =
-  let () = Pp.printf "\n@{<bold>Input:@}\n%s\n" (layout_symbolic_regex reg) in
+  let () =
+    _log "desymbolic" @@ fun _ ->
+    Pp.printf "\n@{<bold>Input:@}\n%s\n" (layout_symbolic_regex reg)
+  in
   let reg = desugar reg in
   let () =
+    _log "desymbolic" @@ fun _ ->
     Pp.printf "\n@{<bold>After Desugar:@}\n%s\n" (layout_symbolic_regex reg)
   in
   let reg = delimit_context delimit_cotexnt_se reg in
   let () =
+    _log "desymbolic" @@ fun _ ->
     Pp.printf "\n@{<bold>After Delimit Context@}:\n%s\n"
       (layout_symbolic_regex reg)
   in

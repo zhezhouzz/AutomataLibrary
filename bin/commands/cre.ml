@@ -39,7 +39,8 @@ let read_p_and_spec p_source_file spec_source_file output_file () =
   let _, code = struct_check emp code in
   let () = Printf.printf "%s\n" @@ layout_structure code in
   let abstract_ctx = Instantiate.mk_abstract_ctx code in
-  let event_tyctx, event_kindctx = Instantiate.mk_event_ctx code in
+  let event_tyctx = mk_event_tyctx code in
+  let event_kindctx = mk_event_kindctx code in
   let machines = Instantiate.eta_reduction_items emp code in
   let machines =
     StrMap.of_seq @@ List.to_seq
@@ -50,10 +51,53 @@ let read_p_and_spec p_source_file spec_source_file output_file () =
   in
   let sfa = StrMap.find "die" machines "prop" in
   let sfa = Instantiate.regspec_to_sfa sfa in
+  let sfa = Instantiate.rename_regspec_by_event_ctx event_tyctx sfa in
+  (* let sym_ctx = *)
+  (*   SymExplore.init_explore_ctx ~event_tyctx ~event_kindctx ~world:sfa.world *)
+  (*     ~request_bound:4 ~step_bound:5 *)
+  (* in *)
+  let sym_ctx =
+    SymExplore.init_dummy_ctx ~event_tyctx ~event_kindctx ~world:sfa.world
+      ~request_bound:4 ~step_bound:5
+  in
+  let () = Printf.printf "Ctx:\n%s\n" @@ SymExplore.layout_ctx sym_ctx in
+  let dfa_list = sfa.reg in
+  let dfa_list =
+    List.map
+      SymExplore.(
+        fun (world, dfa) ->
+          let paths = explore_counterexample_paths sym_ctx (world, dfa) in
+          (* let () = Printf.printf "Paths:\n%s\n" @@ Path.layout_paths paths in *)
+          let sgnal =
+            StrAutomata.display_dfa @@ symbolic_dfa_to_event_name_dfa dfa
+          in
+          let world, dfa = simplify_via_paths paths (world, dfa) in
+          let () =
+            Printf.printf "Ctx:\n%s\n" @@ layout_qautomata (world, dfa)
+          in
+          (* let sgnal = SFA.display_dfa ctx.dfa in *)
+          let sgnal =
+            StrAutomata.display_dfa @@ symbolic_dfa_to_event_name_dfa dfa
+          in
+          (world, dfa))
+      dfa_list
+  in
+  let path = SymExplore.mexplore_counterexample_paths sym_ctx dfa_list in
+  let () =
+    Printf.printf "Paths:\n%s\n"
+      (match path with
+      | None -> "none"
+      | Some l ->
+          List.split_by "\n"
+            (fun (world_prop, path) ->
+              spf "[%s]\n%s" (layout_prop world_prop)
+                (SymExplore.Path.layout path))
+            l)
+  in
+  let () = failwith "zz" in
   (* let reg = SFA.desugar_and_delimit_regex sfa.reg in *)
   (* let () = Printf.printf "%s\n" @@ layout_symbolic_regex reg in *)
   let () = failwith "zz" in
-  let sfa = Instantiate.rename_regspec_by_event_ctx event_tyctx sfa in
   let code = read_functional_p_file p_source_file () in
   let code = Ptypecheck.p_items_infer emp code in
   let code =

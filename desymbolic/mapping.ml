@@ -56,7 +56,7 @@ let tab_to_prop tab =
         if b then Lit lit :: res else Not (Lit lit) :: res)
       tab []
   in
-  And res
+  smart_and res
 
 let print_opt_stat (num, test_num) features =
   let total_fv = Sugar.pow 2 (Array.length features) in

@@ -163,7 +163,7 @@ module MakeAutomataDot (FA : FINITE_AUTOMATA) = struct
     Hashtbl.fold
       (fun (source, target) s dg ->
         Digraph.with_edge dg
-          ~attrs:[ ("label", edge_name s) ]
+          ~attrs:[ ("label", edge_name s); ("fontsize", "10") ]
           (Hashtbl.find states source, Hashtbl.find states target))
       edges dg
 end

@@ -390,38 +390,48 @@ module MakeAutomata (C : CHARAC) = struct
     }
 
   let rec compile_raw_regex_to_eps_nfa (r : raw_regex) : EpsFA.nfa option =
-    match r with
-    | Empty -> None
-    | Eps -> Some eps_lit_eps_nfa
-    | MultiChar cs ->
-        if CharSet.is_empty cs then None else Some (multi_char_eps_nfa cs)
-    | Alt (r1, r2) -> (
-        match
-          (compile_raw_regex_to_eps_nfa r1, compile_raw_regex_to_eps_nfa r2)
-        with
-        | None, r2 -> r2
-        | r1, None -> r1
-        | Some r1, Some r2 -> Some (union_eps_nfa r1 r2))
-    | Inters (r1, r2) -> (
-        match
-          (compile_raw_regex_to_eps_nfa r1, compile_raw_regex_to_eps_nfa r2)
-        with
-        | None, _ | _, None -> None
-        | Some r1, Some r2 -> Some (intersect_eps_nfa r1 r2))
-    | Comple (cs, r) -> (
-        match compile_raw_regex_to_eps_nfa r with
-        | None -> compile_raw_regex_to_eps_nfa (Star (MultiChar cs))
-        | Some r -> Some (complement_eps_nfa cs r))
-    | Seq (r1, r2) -> (
-        match
-          (compile_raw_regex_to_eps_nfa r1, compile_raw_regex_to_eps_nfa r2)
-        with
-        | None, _ | _, None -> None
-        | Some r1, Some r2 -> Some (concat_eps_nfa r1 r2))
-    | Star r -> (
-        match compile_raw_regex_to_eps_nfa r with
-        | None -> Some eps_lit_eps_nfa
-        | Some r -> Some (kleene_eps_nfa r))
+    let res =
+      match r with
+      | Empty -> None
+      | Eps -> Some eps_lit_eps_nfa
+      | MultiChar cs ->
+          if CharSet.is_empty cs then None else Some (multi_char_eps_nfa cs)
+      | Alt (r1, r2) -> (
+          match
+            (compile_raw_regex_to_eps_nfa r1, compile_raw_regex_to_eps_nfa r2)
+          with
+          | None, r2 -> r2
+          | r1, None -> r1
+          | Some r1, Some r2 -> Some (union_eps_nfa r1 r2))
+      | Inters (r1, r2) -> (
+          match
+            (compile_raw_regex_to_eps_nfa r1, compile_raw_regex_to_eps_nfa r2)
+          with
+          | None, _ | _, None -> None
+          | Some r1, Some r2 -> Some (intersect_eps_nfa r1 r2))
+      | Comple (cs, r) -> (
+          match compile_raw_regex_to_eps_nfa r with
+          | None -> compile_raw_regex_to_eps_nfa (Star (MultiChar cs))
+          | Some r -> Some (complement_eps_nfa cs r))
+      | Seq (r1, r2) -> (
+          match
+            (compile_raw_regex_to_eps_nfa r1, compile_raw_regex_to_eps_nfa r2)
+          with
+          | None, _ | _, None -> None
+          | Some r1, Some r2 -> Some (concat_eps_nfa r1 r2))
+      | Star r -> (
+          match compile_raw_regex_to_eps_nfa r with
+          | None -> Some eps_lit_eps_nfa
+          | Some r -> Some (kleene_eps_nfa r))
+    in
+    (* let () = Printf.printf "Compile %s to\n" (layout_raw_regex r) in *)
+    (* let () = *)
+    (*   Printf.printf "%s\n" *)
+    (*     (match res with *)
+    (*     | None -> "{}" *)
+    (*     | Some res -> layout_dfa @@ eps_determinize res) *)
+    (* in *)
+    res
 
   let compile_raw_regex_to_dfa (r : raw_regex) : dfa =
     match compile_raw_regex_to_eps_nfa r with
@@ -442,13 +452,6 @@ module MakeAutomata (C : CHARAC) = struct
 
   let regex_to_raw (regex : ('t, C.t) regex) : raw_regex =
     (* let regex = Regex.to_nnf regex in *)
-    (* let () = *)
-    (*   Printf.printf "regex_to_raw: %s\n" *)
-    (*     (Sexplib.Sexp.to_string *)
-    (*     @@ sexp_of_regex *)
-    (*          (fun c -> Sexplib.Std.sexp_of_string @@ C.layout c) *)
-    (*          regex) *)
-    (* in *)
     let rec aux (regex : ('t, C.t) regex) : raw_regex =
       match regex with
       | Extension _ | SyntaxSugar _ | RExpr _ -> failwith "die"
@@ -463,7 +466,9 @@ module MakeAutomata (C : CHARAC) = struct
       | SeqA (r1, r2) -> Seq (aux r1, aux r2)
       | StarA r -> Star (aux r)
     in
-    aux regex
+    let res = aux regex in
+    (* let () = Printf.printf "\t\tregex: %s\n" (layout_raw_regex res) in *)
+    res
 
   let compile_regex_to_dfa (r : ('t, C.t) regex) : dfa =
     compile_raw_regex_to_dfa @@ regex_to_raw r

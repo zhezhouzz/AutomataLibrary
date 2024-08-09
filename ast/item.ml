@@ -39,3 +39,23 @@ let remove_server_field_record_type = function
            (fun (x, _) -> not (String.equal x default_serv_field.x))
            l)
   | _ -> Sugar._failatwith __FILE__ __LINE__ "die"
+
+open Zzdatatype.Datatype
+
+let mk_event_tyctx items =
+  List.fold_right
+    (function
+      | MEventDecl { ev; _ } -> StrMap.add ev.x ev.ty | _ -> fun res -> res)
+    items StrMap.empty
+
+let mk_event_kindctx items =
+  List.fold_right
+    (function
+      | MEventDecl { ev; event_kind; _ } -> StrMap.add ev.x event_kind
+      | _ -> fun res -> res)
+    items StrMap.empty
+
+let layout_event_kind = function
+  | Req -> "request"
+  | Resp -> "response"
+  | Hidden -> "hidden"

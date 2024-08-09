@@ -26,14 +26,14 @@ module SFA = struct
     (* let () = Pp.printf "\n@{<bold>before normalize:@}\n%s\n" (layout_dfa sfa) in *)
     normalize_dfa sfa
 
-  (* open Zzdatatype.Datatype *)
+  open Zzdatatype.Datatype
 
   let rename_sevent event_ctx (dfa : dfa) =
     let f = function
       | GuardEvent _ -> _failatwith __FILE__ __LINE__ "die"
       | EffEvent { op; vs; phi } ->
           let l =
-            match get_opt event_ctx op with
+            match StrMap.find_opt event_ctx op with
             | Some (Nt.Ty_record l) -> l
             | None -> _failatwith __FILE__ __LINE__ (spf "die: None on %s" op)
             | Some ty ->
@@ -61,3 +61,16 @@ module SFA = struct
     in
     dfa_map_c f dfa
 end
+
+let symbolic_dfa_to_event_name_dfa (dfa : SFA.dfa) =
+  let open StrAutomata in
+  let next =
+    SFA.dfa_fold_transitions
+      (fun (st, ch, dest) ->
+        nfa_next_insert st (_get_sevent_name __FILE__ __LINE__ ch) dest)
+      dfa StateMap.empty
+  in
+  let nfa : nfa =
+    { start = StateSet.singleton dfa.start; finals = dfa.finals; next }
+  in
+  determinize nfa

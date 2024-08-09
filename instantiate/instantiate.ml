@@ -89,7 +89,12 @@ and do_apply ctx (func : (Nt.t, Nt.t sevent) regex) arg =
   | RExpr (QFRegex { qv; body }) -> (
       match qv.ty with
       | RForall _ ->
-          (* let () = Printf.printf "subst\n" in *)
+          (* let () = *)
+          (*   Printf.printf "subst %s with [%s|->%s]\n" *)
+          (*     (layout_symbolic_regex body) *)
+          (*     qv.x *)
+          (*     (layout_regex_expr (fun _ -> "") layout_se arg) *)
+          (* in *)
           let res = subst_regex body qv.x arg in
           (* let () = Printf.printf "res: %s\n" @@ layout_symbolic_regex res in *)
           res
@@ -292,12 +297,3 @@ let machine_to_sfa (m : (Nt.t, Nt.t sevent) regex machine) =
 
 let machines_to_sfas (machines : (Nt.t, Nt.t sevent) regex machine StrMap.t) =
   StrMap.map machine_to_sfa machines
-
-let mk_event_ctx items =
-  List.fold_left
-    (fun (tyctx, kindctx) e ->
-      match e with
-      | MEventDecl { ev; event_kind } ->
-          (add_to_right tyctx ev, add_to_right kindctx ev.x #: event_kind)
-      | _ -> (tyctx, kindctx))
-    (emp, emp) items

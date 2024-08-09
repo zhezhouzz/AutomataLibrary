@@ -16,3 +16,11 @@ let vs_names_from_types tps =
 
 (* let __server_feild = "dest" *)
 (* let server_type = Nt.Ty_constructor ("server", []) *)
+
+let _get_sevent_fields file line = function
+  | EffEvent { op; vs; phi } -> (op, vs, phi)
+  | GuardEvent _ -> _failatwith file line "die"
+
+let _get_sevent_name file line p =
+  let res, _, _ = _get_sevent_fields file line p in
+  res
